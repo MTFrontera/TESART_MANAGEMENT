@@ -757,5 +757,13 @@ app.get('/:page', (req, res, next) => {
     });
 });
 
+// Lightweight database health check (helps confirm Supabase connection)
+app.get('/api/ping', (req, res) => {
+    db.query('SELECT 1', (err) => {
+        if (err) return res.status(500).json({ ok: false, error: err.message });
+        res.json({ ok: true, message: 'Database connection OK' });
+    });
+});
+
 // For Vercel deployment (export Express app)
 module.exports = app;

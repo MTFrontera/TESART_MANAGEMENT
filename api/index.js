@@ -4,12 +4,21 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const { Pool } = require('pg');
 
+// If you use this file (e.g. Vercel Serverless routes), load env vars like the main server.
+require('dotenv').config({ path: '.env.local' });
+
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
+const rawDbUrl = process.env.DATABASE_URL || 'postgresql://postgres:password@localhost:5432/tesart';
+const connectionString = rawDbUrl.replace(/\[|\]/g, '');
+
 const db = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:password@localhost:5432/tesart',
+  connectionString,
+  ssl: connectionString.includes('.supabase.co')
+    ? { rejectUnauthorized: false }
+    : undefined,
 });
 
 // ===== API routes =====
