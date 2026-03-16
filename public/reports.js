@@ -1,6 +1,6 @@
 async function loadSummary() {
     try {
-        const res = await fetch('http://localhost:3000/api/reports/summary');
+        const res = await fetch(window.location.origin + '/api/reports/summary');
         if (!res.ok) throw new Error('Failed to load report summary');
         const data = await res.json();
         const tbody = document.getElementById('summaryTableBody');

@@ -1,12 +1,12 @@
 async function loadInitialData() {
     // Load Customers for dropdown
-    const custRes = await fetch('http://localhost:3000/api/customers');
+    const custRes = await fetch(window.location.origin + '/api/customers');
     const customers = await custRes.json();
     document.getElementById('selectCustomer').innerHTML += customers.map(c => 
         `<option value="${c.CustomerID}">${c.CustomerName}</option>`).join('');
 
     // Load Employees for dropdown
-    const empRes = await fetch('http://localhost:3000/api/employees');
+    const empRes = await fetch(window.location.origin + '/api/employees');
     const employees = await empRes.json();
     document.getElementById('selectEmployee').innerHTML += employees.map(e => 
         `<option value="${e.EmployeeID}">${e.FirstName} ${e.LastName}</option>`).join('');
@@ -15,7 +15,7 @@ async function loadInitialData() {
 }
 
 async function loadOrders() {
-    const res = await fetch('http://localhost:3000/api/orders');
+    const res = await fetch(window.location.origin + '/api/orders');
     const orders = await res.json();
     const tbody = document.getElementById('orderTableBody');
     tbody.innerHTML = orders.map(o => `
@@ -40,7 +40,7 @@ async function createOrder() {
         TotalAmount: 0 // Initial amount
     };
 
-    await fetch('http://localhost:3000/api/orders', {
+    await fetch(window.location.origin + '/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)

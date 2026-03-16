@@ -1,4 +1,4 @@
-const API_URL = 'http://localhost:3000/api/logistics';
+const API_URL = window.location.origin + '/api/logistics';
 
 async function loadLogistics() {
     try {
@@ -29,7 +29,7 @@ async function loadLogistics() {
 
 async function loadOrdersForDropdown() {
     try {
-        const res = await fetch('http://localhost:3000/api/orders');
+        const res = await fetch(window.location.origin + '/api/orders');
         if (!res.ok) throw new Error(`Fetch failed (${res.status})`);
         const orders = await res.json();
         const select = document.getElementById('logOrderSelect');

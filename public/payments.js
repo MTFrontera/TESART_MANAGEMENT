@@ -1,4 +1,4 @@
-const API_URL = 'http://localhost:3000/api/payments';
+const API_URL = window.location.origin + '/api/payments';
 
 async function loadPayments() {
     const res = await fetch(API_URL);
@@ -23,7 +23,7 @@ async function loadPayments() {
 }
 
 async function loadOrdersForDropdown() {
-    const res = await fetch('http://localhost:3000/api/orders');
+    const res = await fetch(window.location.origin + '/api/orders');
     const orders = await res.json();
     const select = document.getElementById('payOrderSelect');
     select.innerHTML += orders.map(o => `<option value="${o.OrderID}">#${o.OrderID} (${o.CustomerName})</option>`).join('');

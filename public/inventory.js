@@ -1,4 +1,4 @@
-const API_URL = 'http://localhost:3000/api/inventory';
+const API_URL = window.location.origin + '/api/inventory';
 
 async function loadInventory() {
     try {
@@ -31,7 +31,7 @@ async function loadInventory() {
 
 async function loadProductsForDropdown() {
     try {
-        const res = await fetch('http://localhost:3000/api/products');
+        const res = await fetch(window.location.origin + '/api/products');
         if (!res.ok) throw new Error(`Fetch failed (${res.status})`);
         const products = await res.json();
         const select = document.getElementById('invProductSelect');

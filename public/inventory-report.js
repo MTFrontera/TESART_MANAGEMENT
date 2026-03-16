@@ -1,6 +1,6 @@
 async function loadInventoryReport() {
     try {
-        const res = await fetch('http://localhost:3000/api/reports/inventory-status');
+        const res = await fetch(window.location.origin + '/api/reports/inventory-status');
         if (!res.ok) throw new Error(`Fetch failed (${res.status})`);
 
         const data = await res.json();

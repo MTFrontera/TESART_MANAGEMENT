@@ -2,7 +2,7 @@ const path = require('path');
 
 const express = require('express');
 
-const mysql = require('mysql2');
+const { Pool } = require('pg');
 
 const cors = require('cors');
 
@@ -22,15 +22,9 @@ app.use(express.static('public'));
 
 // Database Connection
 
-const db = mysql.createConnection({
+const db = new Pool({
 
-    host: 'localhost',
-
-    user: 'root',
-
-    password: '',
-
-    database: 'database_TesArt_RGC'
+    connectionString: process.env.DATABASE_URL || 'postgresql://postgres:password@localhost:5432/tesart'
 
 });
 
@@ -54,7 +48,7 @@ app.get('/api/orderdetails', (req, res) => {
 
             od.OrderID,
 
-            DATE_FORMAT(o.OrderDate, '%b %e, %Y') as Date,
+            TO_CHAR(o.OrderDate, 'Mon DD, YYYY') as Date,
 
             p.ProductName,
 
@@ -66,7 +60,7 @@ app.get('/api/orderdetails', (req, res) => {
 
         FROM orderdetails od
 
-        JOIN \`order\` o ON od.OrderID = o.OrderID
+        JOIN "order" o ON od.OrderID = o.OrderID
 
         JOIN product p ON od.ProductID = p.ProductID
 
@@ -78,7 +72,7 @@ app.get('/api/orderdetails', (req, res) => {
 
         if (err) return res.status(500).send(err);
 
-        res.json(results);
+        res.json(results.rows);
 
     });
 
@@ -88,7 +82,7 @@ app.get('/api/orderdetails', (req, res) => {
 
 app.get('/api/dropdowns', (req, res) => {
 
-    db.query('SELECT OrderID FROM `order`', (err, orders) => {
+    db.query('SELECT OrderID FROM "order"', (err, orders) => {
 
         if (err) throw err;
 
@@ -96,7 +90,7 @@ app.get('/api/dropdowns', (req, res) => {
 
             if (err) throw err;
 
-            res.json({ orders, products });
+            res.json({ orders: orders.rows, products: products.rows });
 
         });
 
@@ -114,7 +108,7 @@ app.post('/api/orderdetails', (req, res) => {
 
 
 
-    const query = 'INSERT INTO orderdetails (OrderID, ProductID, Quantity, UnitPrice, Subtotal) VALUES (?, ?, ?, ?, ?)';
+    const query = 'INSERT INTO orderdetails (OrderID, ProductID, Quantity, UnitPrice, Subtotal) VALUES ($1, $2, $3, $4, $5)';
 
     db.query(query, [OrderID, ProductID, Quantity, UnitPrice, Subtotal], (err, result) => {
 
@@ -130,7 +124,7 @@ app.post('/api/orderdetails', (req, res) => {
 
 app.delete('/api/orderdetails/:id', (req, res) => {
 
-    db.query('DELETE FROM orderdetails WHERE OrderDetailID = ?', [req.params.id], (err) => {
+    db.query('DELETE FROM orderdetails WHERE OrderDetailID = $1', [req.params.id], (err) => {
 
         if (err) return res.status(500).send(err);
 
@@ -156,7 +150,7 @@ app.get('/api/products', (req, res) => {
 
         if (err) return res.status(500).send(err);
 
-        res.json(results);
+        res.json(results.rows);
 
     });
 
@@ -168,7 +162,7 @@ app.post('/api/products', (req, res) => {
 
     const { ProductName, Description, UnitPrice, Category } = req.body;
 
-    const query = 'INSERT INTO product (ProductName, Description, UnitPrice, Category) VALUES (?, ?, ?, ?)';
+    const query = 'INSERT INTO product (ProductName, Description, UnitPrice, Category) VALUES ($1, $2, $3, $4)';
 
     db.query(query, [ProductName, Description, UnitPrice, Category], (err, result) => {
 
@@ -186,7 +180,7 @@ app.put('/api/products/:id', (req, res) => {
 
     const { ProductName, Description, UnitPrice, Category } = req.body;
 
-    const query = 'UPDATE product SET ProductName = ?, Description = ?, UnitPrice = ?, Category = ? WHERE ProductID = ?';
+    const query = 'UPDATE product SET ProductName = $1, Description = $2, UnitPrice = $3, Category = $4 WHERE ProductID = $5';
 
     db.query(query, [ProductName, Description, UnitPrice, Category, req.params.id], (err) => {
 
@@ -202,7 +196,7 @@ app.put('/api/products/:id', (req, res) => {
 
 app.delete('/api/products/:id', (req, res) => {
 
-    db.query('DELETE FROM product WHERE ProductID = ?', [req.params.id], (err) => {
+    db.query('DELETE FROM product WHERE ProductID = $1', [req.params.id], (err) => {
 
         if (err) return res.status(500).send({ error: "Cannot delete product because it is linked to existing orders." });
 
@@ -230,7 +224,7 @@ app.get('/api/customers', (req, res) => {
 
         if (err) return res.status(500).send(err);
 
-        res.json(results);
+        res.json(results.rows);
 
     });
 
@@ -244,7 +238,7 @@ app.post('/api/customers', (req, res) => {
 
     const { FirstName, LastName, Email, PhoneNumber, Address } = req.body;
 
-    const query = 'INSERT INTO customer (FirstName, LastName, Email, PhoneNumber, Address) VALUES (?, ?, ?, ?, ?)';
+    const query = 'INSERT INTO customer (FirstName, LastName, Email, PhoneNumber, Address) VALUES ($1, $2, $3, $4, $5)';
 
     db.query(query, [FirstName, LastName, Email, PhoneNumber, Address], (err, result) => {
 
@@ -264,7 +258,7 @@ app.put('/api/customers/:id', (req, res) => {
 
     const { FirstName, LastName, Email, PhoneNumber, Address } = req.body;
 
-    const query = 'UPDATE customer SET FirstName = ?, LastName = ?, Email = ?, PhoneNumber = ?, Address = ? WHERE CustomerID = ?';
+    const query = 'UPDATE customer SET FirstName = $1, LastName = $2, Email = $3, PhoneNumber = $4, Address = $5 WHERE CustomerID = $6';
 
     db.query(query, [FirstName, LastName, Email, PhoneNumber, Address, req.params.id], (err) => {
 
@@ -282,7 +276,7 @@ app.put('/api/customers/:id', (req, res) => {
 
 app.delete('/api/customers/:id', (req, res) => {
 
-    db.query('DELETE FROM customer WHERE CustomerID = ?', [req.params.id], (err) => {
+    db.query('DELETE FROM customer WHERE CustomerID = $1', [req.params.id], (err) => {
 
         if (err) return res.status(500).send({ error: "Cannot delete customer with active order history." });
 
@@ -314,15 +308,15 @@ app.get('/api/orders', (req, res) => {
 
             c.CustomerName,
 
-            CONCAT(e.FirstName, ' ', e.LastName) AS EmployeeName,
+            e.FirstName || ' ' || e.LastName AS EmployeeName,
 
-            DATE_FORMAT(o.OrderDate, '%b %e, %Y') as Date,
+            TO_CHAR(o.OrderDate, 'Mon DD, YYYY') as Date,
 
             o.OrderStatus,
 
             o.TotalAmount
 
-        FROM \`order\` o
+        FROM "order" o
 
         JOIN customer c ON o.CustomerID = c.CustomerID
 
@@ -336,7 +330,7 @@ app.get('/api/orders', (req, res) => {
 
         if (err) return res.status(500).send(err);
 
-        res.json(results);
+        res.json(results.rows);
 
     });
 
@@ -350,7 +344,7 @@ app.post('/api/orders', (req, res) => {
 
     const { CustomerID, EmployeeID, OrderDate, OrderStatus, DeliveryMethod, TotalAmount } = req.body;
 
-    const query = 'INSERT INTO `order` (CustomerID, EmployeeID, OrderDate, OrderStatus, DeliveryMethod, TotalAmount) VALUES (?, ?, ?, ?, ?, ?)';
+    const query = 'INSERT INTO "order" (CustomerID, EmployeeID, OrderDate, OrderStatus, DeliveryMethod, TotalAmount) VALUES ($1, $2, $3, $4, $5, $6)';
 
     db.query(query, [CustomerID, EmployeeID, OrderDate, OrderStatus, DeliveryMethod, TotalAmount], (err, result) => {
 
@@ -380,7 +374,7 @@ app.get('/api/employees', (req, res) => {
 
         if (err) return res.status(500).send(err);
 
-        res.json(results);
+        res.json(results.rows);
 
     });
 
@@ -394,7 +388,7 @@ app.post('/api/employees', (req, res) => {
 
     const { FirstName, LastName, Role, ContactNumber, ReportsTo } = req.body;
 
-    const query = 'INSERT INTO employee (FirstName, LastName, Role, ContactNumber, ReportsTo) VALUES (?, ?, ?, ?, ?)';
+    const query = 'INSERT INTO employee (FirstName, LastName, Role, ContactNumber, ReportsTo) VALUES ($1, $2, $3, $4, $5)';
 
     db.query(query, [FirstName, LastName, Role, ContactNumber, ReportsTo || null], (err, result) => {
 
@@ -414,7 +408,7 @@ app.put('/api/employees/:id', (req, res) => {
 
     const { FirstName, LastName, Role, ContactNumber, ReportsTo } = req.body;
 
-    const query = 'UPDATE employee SET FirstName = ?, LastName = ?, Role = ?, ContactNumber = ?, ReportsTo = ? WHERE EmployeeID = ?';
+    const query = 'UPDATE employee SET FirstName = $1, LastName = $2, Role = $3, ContactNumber = $4, ReportsTo = $5 WHERE EmployeeID = $6';
 
     db.query(query, [FirstName, LastName, Role, ContactNumber, ReportsTo || null, req.params.id], (err) => {
 
@@ -432,7 +426,7 @@ app.put('/api/employees/:id', (req, res) => {
 
 app.delete('/api/employees/:id', (req, res) => {
 
-    db.query('DELETE FROM employee WHERE EmployeeID = ?', [req.params.id], (err) => {
+    db.query('DELETE FROM employee WHERE EmployeeID = $1', [req.params.id], (err) => {
 
         if (err) return res.status(500).send({ error: "Cannot delete employee assigned to active orders." });
 
@@ -466,7 +460,7 @@ app.get('/api/inventory', (req, res) => {
 
             i.StockQuantity,
 
-            DATE_FORMAT(i.LastUpdated, '%b %e, %Y %H:%i') as LastUpdated
+            TO_CHAR(i.LastUpdated, 'Mon DD, YYYY HH24:MI') as LastUpdated
 
         FROM inventory i
 
@@ -480,7 +474,7 @@ app.get('/api/inventory', (req, res) => {
 
         if (err) return res.status(500).send(err);
 
-        res.json(results);
+        res.json(results.rows);
 
     });
 
@@ -494,7 +488,7 @@ app.put('/api/inventory/:id', (req, res) => {
 
     const { StockQuantity } = req.body;
 
-    const query = 'UPDATE inventory SET StockQuantity = ?, LastUpdated = NOW() WHERE InventoryID = ?';
+    const query = 'UPDATE inventory SET StockQuantity = $1, LastUpdated = current_timestamp WHERE InventoryID = $2';
 
     db.query(query, [StockQuantity, req.params.id], (err) => {
 
@@ -514,7 +508,7 @@ app.post('/api/inventory', (req, res) => {
 
     const { ProductID, StockQuantity } = req.body;
 
-    const query = 'INSERT INTO inventory (ProductID, StockQuantity, LastUpdated) VALUES (?, ?, NOW())';
+    const query = 'INSERT INTO inventory (ProductID, StockQuantity, LastUpdated) VALUES ($1, $2, current_timestamp)';
 
     db.query(query, [ProductID, StockQuantity], (err) => {
 
@@ -550,7 +544,7 @@ app.get('/api/payments', (req, res) => {
 
             c.CustomerName,
 
-            DATE_FORMAT(p.PaymentDate, '%b %e, %Y %H:%i') as Date,
+            TO_CHAR(p.PaymentDate, 'Mon DD, YYYY HH24:MI') as Date,
 
             p.PaymentMethod,
 
@@ -560,7 +554,7 @@ app.get('/api/payments', (req, res) => {
 
         FROM payment p
 
-        JOIN \`order\` o ON p.OrderID = o.OrderID
+        JOIN "order" o ON p.OrderID = o.OrderID
 
         JOIN customer c ON o.CustomerID = c.CustomerID
 
@@ -572,7 +566,7 @@ app.get('/api/payments', (req, res) => {
 
         if (err) return res.status(500).send(err);
 
-        res.json(results);
+        res.json(results.rows);
 
     });
 
@@ -586,7 +580,7 @@ app.post('/api/payments', (req, res) => {
 
     const { OrderID, PaymentMethod, AmountPaid, PaymentStatus } = req.body;
 
-    const query = 'INSERT INTO payment (OrderID, PaymentDate, PaymentMethod, AmountPaid, PaymentStatus) VALUES (?, NOW(), ?, ?, ?)';
+    const query = 'INSERT INTO payment (OrderID, PaymentDate, PaymentMethod, AmountPaid, PaymentStatus) VALUES ($1, current_timestamp, $2, $3, $4)';
 
     db.query(query, [OrderID, PaymentMethod, AmountPaid, PaymentStatus], (err, result) => {
 
@@ -624,13 +618,13 @@ app.get('/api/logistics', (req, res) => {
 
             dp.DeliveryType,
 
-            DATE_FORMAT(dp.DeliveryDate, '%b %e, %Y') as Date,
+            TO_CHAR(dp.DeliveryDate, 'Mon DD, YYYY') as Date,
 
             dp.DeliveryStatus
 
         FROM delivery_pickup dp
 
-        JOIN \`order\` o ON dp.OrderID = o.OrderID
+        JOIN "order" o ON dp.OrderID = o.OrderID
 
         JOIN customer c ON o.CustomerID = c.CustomerID
 
@@ -642,7 +636,7 @@ app.get('/api/logistics', (req, res) => {
 
         if (err) return res.status(500).send(err);
 
-        res.json(results);
+        res.json(results.rows);
 
     });
 
@@ -656,7 +650,7 @@ app.post('/api/logistics', (req, res) => {
 
     const { OrderID, DeliveryType, DeliveryDate, DeliveryStatus } = req.body;
 
-    const query = 'INSERT INTO delivery_pickup (OrderID, DeliveryType, DeliveryDate, DeliveryStatus) VALUES (?, ?, ?, ?)';
+    const query = 'INSERT INTO delivery_pickup (OrderID, DeliveryType, DeliveryDate, DeliveryStatus) VALUES ($1, $2, $3, $4)';
 
     db.query(query, [OrderID, DeliveryType, DeliveryDate, DeliveryStatus], (err, result) => {
 
@@ -671,7 +665,7 @@ app.post('/api/logistics', (req, res) => {
 // PUT: Update logistics status
 app.put('/api/logistics/:id', (req, res) => {
     const { DeliveryStatus } = req.body;
-    const query = 'UPDATE delivery_pickup SET DeliveryStatus = ? WHERE DeliveryID = ?';
+    const query = 'UPDATE delivery_pickup SET DeliveryStatus = $1 WHERE DeliveryID = $2';
     db.query(query, [DeliveryStatus, req.params.id], (err) => {
         if (err) return res.status(500).send(err);
         res.send('Logistics status updated!');
@@ -685,14 +679,14 @@ app.put('/api/logistics/:id', (req, res) => {
 app.get('/api/dashboard/stats', (req, res) => {
     const query = `
         SELECT
-            IFNULL((SELECT SUM(TotalAmount) FROM \`order\`), 0) AS revenue,
-            IFNULL((SELECT COUNT(*) FROM customer), 0) AS customers,
-            IFNULL((SELECT COUNT(*) FROM inventory WHERE StockQuantity < 10), 0) AS lowStock
+            COALESCE((SELECT SUM(TotalAmount) FROM "order"), 0) AS revenue,
+            COALESCE((SELECT COUNT(*) FROM customer), 0) AS customers,
+            COALESCE((SELECT COUNT(*) FROM inventory WHERE StockQuantity < 10), 0) AS lowStock
     `;
 
     db.query(query, (err, results) => {
         if (err) return res.status(500).send(err);
-        res.json(results[0] || { revenue: 0, customers: 0, lowStock: 0 });
+        res.json(results.rows[0] || { revenue: 0, customers: 0, lowStock: 0 });
     });
 });
 
@@ -709,7 +703,7 @@ app.get('/api/reports/summary', (req, res) => {
             o.OrderDate,
             o.TotalAmount,
             o.OrderStatus
-        FROM \`order\` o
+        FROM "order" o
         JOIN customer c ON o.CustomerID = c.CustomerID
         ORDER BY o.OrderDate DESC
         LIMIT 50
@@ -717,7 +711,7 @@ app.get('/api/reports/summary', (req, res) => {
 
     db.query(query, (err, results) => {
         if (err) return res.status(500).send(err);
-        res.json(results);
+        res.json(results.rows);
     });
 });
 
@@ -737,7 +731,7 @@ app.get('/api/reports/inventory-status', (req, res) => {
 
     db.query(query, (err, results) => {
         if (err) return res.status(500).send(err);
-        res.json(results);
+        res.json(results.rows);
     });
 });
 
@@ -748,4 +742,4 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.listen(3000, () => console.log('Server running on http://localhost:3000'));
+app.listen(process.env.PORT || 3000, () => console.log('Server running on port ' + (process.env.PORT || 3000)));

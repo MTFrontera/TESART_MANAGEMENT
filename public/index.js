@@ -1,6 +1,6 @@
 async function loadDashboard() {
     try {
-        const res = await fetch('http://localhost:3000/api/dashboard/stats');
+        const res = await fetch(window.location.origin + '/api/dashboard/stats');
         const data = await res.json();
 
         // Update the UI with real numbers

@@ -1,4 +1,4 @@
-const API_URL = 'http://localhost:3000/api/employees';
+const API_URL = window.location.origin + '/api/employees';
 
 async function loadEmployees() {
     const res = await fetch(API_URL);
