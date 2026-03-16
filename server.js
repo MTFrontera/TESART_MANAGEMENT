@@ -143,7 +143,7 @@ app.get('/api/dropdowns', (req, res) => {
 
             if (err) throw err;
 
-            res.json({ orders: orders.rows, products: products.rows });
+            res.json({ orders: orders.rows.map(normalizeRow), products: products.rows.map(normalizeRow) });
 
         });
 
@@ -373,6 +373,10 @@ app.get('/api/orders', (req, res) => {
 
         JOIN customer c ON o.CustomerID = c.CustomerID
 
+        JOIN employee e ON o.EmployeeID = e.EmployeeID
+
+    `;
+
     db.query(query, (err, results) => {
 
         if (err) return res.status(500).send(err);
@@ -509,6 +513,12 @@ app.get('/api/inventory', (req, res) => {
 
             TO_CHAR(i.LastUpdated, 'Mon DD, YYYY HH24:MI') as LastUpdated
 
+        FROM inventory i
+
+        JOIN product p ON i.ProductID = p.ProductID
+
+    `;
+
     db.query(query, (err, results) => {
 
         if (err) return res.status(500).send(err);
@@ -595,6 +605,10 @@ app.get('/api/payments', (req, res) => {
 
         JOIN "order" o ON p.OrderID = o.OrderID
 
+        JOIN customer c ON o.CustomerID = c.CustomerID
+
+    `;
+
     db.query(query, (err, results) => {
 
         if (err) return res.status(500).send(err);
@@ -659,6 +673,10 @@ app.get('/api/logistics', (req, res) => {
 
         JOIN "order" o ON dp.OrderID = o.OrderID
 
+        JOIN customer c ON o.CustomerID = c.CustomerID
+
+    `;
+
     db.query(query, (err, results) => {
 
         if (err) return res.status(500).send(err);
@@ -713,7 +731,7 @@ app.get('/api/dashboard/stats', (req, res) => {
 
     db.query(query, (err, results) => {
         if (err) return res.status(500).send(err);
-        res.json(results.rows[0] || { revenue: 0, customers: 0, lowStock: 0 });
+        res.json(normalizeRow(results.rows[0]) || { revenue: 0, customers: 0, lowStock: 0 });
     });
 });
 
