@@ -3,17 +3,19 @@
 -- ----- Customers -----
 CREATE TABLE customer (
   CustomerID SERIAL PRIMARY KEY,
-  CustomerName VARCHAR(100) NOT NULL,
-  ContactNumber VARCHAR(30),
+  FirstName VARCHAR(50) NOT NULL,
+  LastName VARCHAR(50) NOT NULL,
+  Email VARCHAR(100),
+  PhoneNumber VARCHAR(30),
   Address VARCHAR(150)
 );
 
-INSERT INTO customer (CustomerID, CustomerName, ContactNumber, Address) VALUES
-  (1,'Mark Cruz','09123456789','Bukidnon'),
-  (2,'Anna Reyes','09122223333','Cagayan de Oro City'),
-  (3,'John Santos','09133334444','Malaybalay'),
-  (4,'Maria Lopez','09144445555','Valencia'),
-  (5,'Jake Tan','09155556666','Davao');
+INSERT INTO customer (CustomerID, FirstName, LastName, Email, PhoneNumber, Address) VALUES
+  (1,'Mark','Cruz','mark.cruz@email.com','09123456789','Bukidnon'),
+  (2,'Anna','Reyes','anna.reyes@email.com','09122223333','Cagayan de Oro City'),
+  (3,'John','Santos','john.santos@email.com','09133334444','Malaybalay'),
+  (4,'Maria','Lopez','maria.lopez@email.com','09144445555','Valencia'),
+  (5,'Jake','Tan','jake.tan@email.com','09155556666','Davao');
 
 SELECT setval(pg_get_serial_sequence('customer','customerid'), COALESCE((SELECT MAX(customerid) FROM customer), 1));
 
