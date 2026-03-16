@@ -16,7 +16,7 @@ app.use(cors());
 
 app.use(bodyParser.json());
 
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
 
 
 
@@ -747,5 +747,15 @@ if (process.env.NODE_ENV !== 'production') {
     app.listen(process.env.PORT || 3000, () => console.log('Server running on port ' + (process.env.PORT || 3000)));
 }
 
-// For Vercel deployment
+// Fallback to serve HTML pages by name (e.g., /customers -> /public/customers.html)
+app.get('/:page', (req, res, next) => {
+    const page = req.params.page;
+    const filePath = path.join(__dirname, 'public', `${page}.html`);
+
+    res.sendFile(filePath, err => {
+        if (err) return next();
+    });
+});
+
+// For Vercel deployment (export Express app)
 module.exports = app;
