@@ -1,16 +1,26 @@
 // Dynamically set active nav link based on current page
 function setActiveNavLink() {
-    // Get the current page filename
-    const currentPage = window.location.pathname.split('/').pop() || 'index.html';
-    
-    // Get all nav links
+    const normalize = (url) => {
+        try {
+            const u = new URL(url, window.location.origin);
+            let p = u.pathname.replace(/^\/+/g, '').replace(/\/+$/g, '');
+            if (p.endsWith('.html')) p = p.slice(0, -5);
+            return p || 'index';
+        } catch {
+            return url;
+        }
+    };
+
+    const currentPage = normalize(window.location.href);
+
     const navLinks = document.querySelectorAll('.nav-links a');
-    
+
     // Remove active class from all links and add to matching one
     navLinks.forEach(link => {
         const href = link.getAttribute('href');
-        const isActive = href === currentPage || (currentPage === '' && href === 'index.html');
-        
+        const linkPage = normalize(href);
+        const isActive = currentPage === linkPage;
+
         if (isActive) {
             link.classList.add('active');
         } else {

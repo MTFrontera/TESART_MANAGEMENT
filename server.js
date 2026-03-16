@@ -3,29 +3,29 @@ const path = require('path');
 const express = require('express');
 
 const { Pool } = require('pg');
-
 const cors = require('cors');
-
 const bodyParser = require('body-parser');
 
-
+// Load local environment variables (for local development)
+// Create a .env.local file in the project root with DATABASE_URL if you want to use Supabase locally.
+require('dotenv').config({ path: '.env.local' });
 
 const app = express();
 
 app.use(cors());
-
 app.use(bodyParser.json());
-
 app.use(express.static(path.join(__dirname, 'public')));
 
-
-
 // Database Connection
+// Supports local Postgres or Supabase (auto-enables SSL for Supabase).
+const rawDbUrl = process.env.DATABASE_URL || 'postgresql://postgres:password@localhost:5432/tesart';
+const connectionString = rawDbUrl.replace(/\[|\]/g, ''); // strip accidental bracket wrappers
 
 const db = new Pool({
-
-    connectionString: process.env.DATABASE_URL || 'postgresql://postgres:password@localhost:5432/tesart'
-
+    connectionString,
+    ssl: connectionString.includes('.supabase.co')
+        ? { rejectUnauthorized: false }
+        : undefined,
 });
 
 
