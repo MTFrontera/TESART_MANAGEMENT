@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Employees | TesArt Management</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav class="navbar custom-navbar">
+    <div class="container-fluid">
+        <span class="navbar-brand text-white fw-bold">⚙ TesArt Management System</span>
+        <div class="nav-links">
+            <a href="index.html">Dashboard</a>
+            <a href="customers.html">Customers</a>
+            <a href="employees.html">Employees</a>
+            <a href="products.html">Products</a>
+            <a href="orders.html">Orders</a>
+            <a href="order-details.html">Order Details</a>
+            <a href="payments.html">Payments</a>
+            <a href="inventory.html">Inventory</a>
+            <a href="logistics.html">Logistics</a>
+            <a href="reports.html">Reports</a>
+        </div>
+    </div>
+</nav>
+    <div class="container-fluid mt-4 px-4">
+        <h3 class="page-title border-bottom pb-2 mb-4">Staff Directory</h3>
+
+        <div class="card p-3 mb-4 shadow-sm">
+            <h5 id="formTitle">Add Staff Member</h5>
+            <input type="hidden" id="editEmpId">
+            <div class="row g-2 mt-2">
+                <div class="col-md-2"><input type="text" id="eFName" class="form-control" placeholder="First Name"></div>
+                <div class="col-md-2"><input type="text" id="eLName" class="form-control" placeholder="Last Name"></div>
+                <div class="col-md-2">
+                    <select id="eRole" class="form-select">
+                        <option value="CEO">CEO</option>
+                        <option value="Manager">Manager</option>
+                        <option value="Cashier">Cashier</option>
+                        <option value="Staff">Staff</option>
+                    </select>
+                </div>
+                <div class="col-md-2"><input type="text" id="ePhone" class="form-control" placeholder="Phone"></div>
+                <div class="col-md-2"><input type="number" id="eReports" class="form-control" placeholder="Reports To (ID)"></div>
+                <div class="col-md-2">
+                    <button id="submitBtn" class="btn btn-custom w-100">Save Employee</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="table-responsive bg-white shadow-sm rounded">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light text-secondary">
+                    <tr>
+                        <th>ID</th><th>NAME</th><th>ROLE</th><th>CONTACT</th><th>MANAGER ID</th><th>ACTIONS</th>
+                    </tr>
+                </thead>
+                <tbody id="employeeTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+    <script src="employees.js"></script>
+</body>
+</html>
