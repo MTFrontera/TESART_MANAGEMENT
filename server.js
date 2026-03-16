@@ -742,4 +742,10 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.listen(process.env.PORT || 3000, () => console.log('Server running on port ' + (process.env.PORT || 3000)));
+// For local development
+if (process.env.NODE_ENV !== 'production') {
+    app.listen(process.env.PORT || 3000, () => console.log('Server running on port ' + (process.env.PORT || 3000)));
+}
+
+// For Vercel deployment
+module.exports = app;
