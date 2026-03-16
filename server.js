@@ -21,6 +21,15 @@ app.use(express.static(path.join(__dirname, 'public')));
 const rawDbUrl = process.env.DATABASE_URL || 'postgresql://postgres:password@localhost:5432/tesart';
 const connectionString = rawDbUrl.replace(/\[|\]/g, ''); // strip accidental bracket wrappers
 
+// Log the effective DB host/port/dbname (not the password) for debugging.
+try {
+    const u = new URL(connectionString);
+    const safeUrl = `${u.protocol}//${u.username}@${u.hostname}:${u.port}${u.pathname}`;
+    console.log('Using DB:', safeUrl, 'ssl=', u.hostname.includes('.supabase.co'));
+} catch (err) {
+    console.warn('Failed to parse DB URL for logging:', err.message);
+}
+
 const db = new Pool({
     connectionString,
     ssl: connectionString.includes('.supabase.co')
@@ -747,6 +756,14 @@ if (process.env.NODE_ENV !== 'production') {
     app.listen(process.env.PORT || 3000, () => console.log('Server running on port ' + (process.env.PORT || 3000)));
 }
 
+// Lightweight database health check (helps confirm Supabase connection)
+app.get('/api/ping', (req, res) => {
+    db.query('SELECT 1', (err) => {
+        if (err) return res.status(500).json({ ok: false, error: err.message });
+        res.json({ ok: true, message: 'Database connection OK' });
+    });
+});
+
 // Fallback to serve HTML pages by name (e.g., /customers -> /public/customers.html)
 app.get('/:page', (req, res, next) => {
     const page = req.params.page;
@@ -754,14 +771,6 @@ app.get('/:page', (req, res, next) => {
 
     res.sendFile(filePath, err => {
         if (err) return next();
-    });
-});
-
-// Lightweight database health check (helps confirm Supabase connection)
-app.get('/api/ping', (req, res) => {
-    db.query('SELECT 1', (err) => {
-        if (err) return res.status(500).json({ ok: false, error: err.message });
-        res.json({ ok: true, message: 'Database connection OK' });
     });
 });
 
