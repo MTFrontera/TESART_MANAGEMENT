@@ -37,7 +37,51 @@ const db = new Pool({
         : undefined,
 });
 
-
+// Helper function to normalize PostgreSQL lowercase column names to proper case
+function normalizeRow(row) {
+    const normalized = {};
+    Object.keys(row).forEach(key => {
+        // Map common lowercase keys to proper case
+        const keyMap = {
+            'customerid': 'CustomerID',
+            'firstname': 'FirstName',
+            'lastname': 'LastName',
+            'email': 'Email',
+            'phonenumber': 'PhoneNumber',
+            'address': 'Address',
+            'employeeid': 'EmployeeID',
+            'role': 'Role',
+            'contactnumber': 'ContactNumber',
+            'reportsto': 'ReportsTo',
+            'productid': 'ProductID',
+            'productname': 'ProductName',
+            'category': 'Category',
+            'unitprice': 'UnitPrice',
+            'description': 'Description',
+            'returnpolicy': 'ReturnPolicy',
+            'warranty': 'Warranty',
+            'quantityinstock': 'QuantityInStock',
+            'orderid': 'OrderID',
+            'orderdate': 'OrderDate',
+            'orderdetailid': 'OrderDetailID',
+            'quantity': 'Quantity',
+            'subtotal': 'Subtotal',
+            'status': 'Status',
+            'paymentid': 'PaymentID',
+            'paymentdate': 'PaymentDate',
+            'paymentmethod': 'PaymentMethod',
+            'amount': 'Amount',
+            'shipper': 'Shipper',
+            'trackingnumber': 'TrackingNumber',
+            'currentlocation': 'CurrentLocation',
+            'deliverydate': 'DeliveryDate',
+            'date': 'Date'
+        };
+        const newKey = keyMap[key.toLowerCase()] || key;
+        normalized[newKey] = row[key];
+    });
+    return normalized;
+}
 
 // ==========================================
 
@@ -81,7 +125,7 @@ app.get('/api/orderdetails', (req, res) => {
 
         if (err) return res.status(500).send(err);
 
-        res.json(results.rows);
+        res.json(results.rows.map(normalizeRow));
 
     });
 
@@ -159,7 +203,7 @@ app.get('/api/products', (req, res) => {
 
         if (err) return res.status(500).send(err);
 
-        res.json(results.rows);
+        res.json(results.rows.map(normalizeRow));
 
     });
 
@@ -233,7 +277,7 @@ app.get('/api/customers', (req, res) => {
 
         if (err) return res.status(500).send(err);
 
-        res.json(results.rows);
+        res.json(results.rows.map(normalizeRow));
 
     });
 
@@ -329,17 +373,11 @@ app.get('/api/orders', (req, res) => {
 
         JOIN customer c ON o.CustomerID = c.CustomerID
 
-        JOIN employee e ON o.EmployeeID = e.EmployeeID
-
-        ORDER BY o.OrderID DESC
-
-    `;
-
     db.query(query, (err, results) => {
 
         if (err) return res.status(500).send(err);
 
-        res.json(results.rows);
+        res.json(results.rows.map(normalizeRow));
 
     });
 
@@ -383,7 +421,7 @@ app.get('/api/employees', (req, res) => {
 
         if (err) return res.status(500).send(err);
 
-        res.json(results.rows);
+        res.json(results.rows.map(normalizeRow));
 
     });
 
@@ -471,19 +509,11 @@ app.get('/api/inventory', (req, res) => {
 
             TO_CHAR(i.LastUpdated, 'Mon DD, YYYY HH24:MI') as LastUpdated
 
-        FROM inventory i
-
-        JOIN product p ON i.ProductID = p.ProductID
-
-        ORDER BY i.InventoryID DESC
-
-    `;
-
     db.query(query, (err, results) => {
 
         if (err) return res.status(500).send(err);
 
-        res.json(results.rows);
+        res.json(results.rows.map(normalizeRow));
 
     });
 
@@ -565,17 +595,11 @@ app.get('/api/payments', (req, res) => {
 
         JOIN "order" o ON p.OrderID = o.OrderID
 
-        JOIN customer c ON o.CustomerID = c.CustomerID
-
-        ORDER BY p.PaymentID DESC
-
-    `;
-
     db.query(query, (err, results) => {
 
         if (err) return res.status(500).send(err);
 
-        res.json(results.rows);
+        res.json(results.rows.map(normalizeRow));
 
     });
 
@@ -635,17 +659,11 @@ app.get('/api/logistics', (req, res) => {
 
         JOIN "order" o ON dp.OrderID = o.OrderID
 
-        JOIN customer c ON o.CustomerID = c.CustomerID
-
-        ORDER BY dp.DeliveryID DESC
-
-    `;
-
     db.query(query, (err, results) => {
 
         if (err) return res.status(500).send(err);
 
-        res.json(results.rows);
+        res.json(results.rows.map(normalizeRow));
 
     });
 
@@ -720,7 +738,7 @@ app.get('/api/reports/summary', (req, res) => {
 
     db.query(query, (err, results) => {
         if (err) return res.status(500).send(err);
-        res.json(results.rows);
+        res.json(results.rows.map(normalizeRow));
     });
 });
 
@@ -740,7 +758,7 @@ app.get('/api/reports/inventory-status', (req, res) => {
 
     db.query(query, (err, results) => {
         if (err) return res.status(500).send(err);
-        res.json(results.rows);
+        res.json(results.rows.map(normalizeRow));
     });
 });
 
