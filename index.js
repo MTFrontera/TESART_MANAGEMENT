@@ -3,6 +3,7 @@ const path = require('path');
 const express = require('express');
 
 const { Pool } = require('pg');
+const dns = require('dns');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 
@@ -854,6 +855,42 @@ app.get('/api/ping', (req, res) => {
         if (err) return res.status(500).json({ ok: false, error: err.message });
         res.json({ ok: true, message: 'Database connection OK' });
     });
+});
+
+// DNS debug endpoint
+app.get('/api/debug/dns', async (req, res) => {
+    const host = req.query.host || (() => {
+        try {
+            return new URL(connectionString).hostname;
+        } catch {
+            return null;
+        }
+    })();
+
+    if (!host) {
+        return res.status(400).json({ ok: false, error: 'Missing host to resolve' });
+    }
+
+    const result = { host };
+    const lookup = {}; // use for multiple lookups
+
+    try {
+        lookup.lookup = await dns.promises.lookup(host);
+    } catch (err) {
+        lookup.lookup = { error: err.message };
+    }
+    try {
+        lookup.resolve4 = await dns.promises.resolve4(host);
+    } catch (err) {
+        lookup.resolve4 = { error: err.message };
+    }
+    try {
+        lookup.resolve6 = await dns.promises.resolve6(host);
+    } catch (err) {
+        lookup.resolve6 = { error: err.message };
+    }
+
+    res.json({ ok: true, dns: lookup });
 });
 
 // Fallback to serve HTML pages by name (e.g., /customers -> /public/customers.html)
