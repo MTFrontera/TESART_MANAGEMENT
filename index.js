@@ -39,13 +39,14 @@ try {
 async function resolveDatabaseHost(host) {
     if (!host) return null;
 
+    // Prefer IPv4 resolution since some hosted environments may not support IPv6 exit.
     try {
-        const res = await dns.promises.lookup(host);
+        const res = await dns.promises.lookup(host, { family: 4 });
         resolvedHost = res.address;
-        console.log('DNS lookup succeeded (system):', host, '=>', resolvedHost);
+        console.log('DNS lookup succeeded (system, IPv4):', host, '=>', resolvedHost);
         return resolvedHost;
     } catch (err) {
-        console.warn('System DNS lookup failed:', err.code || err.message);
+        console.warn('System DNS IPv4 lookup failed:', err.code || err.message);
     }
 
     try {
@@ -54,11 +55,21 @@ async function resolveDatabaseHost(host) {
         const addresses = await resolver.resolve4(host);
         if (addresses && addresses.length) {
             resolvedHost = addresses[0];
-            console.log('DNS lookup succeeded (public):', host, '=>', resolvedHost);
+            console.log('DNS lookup succeeded (public IPv4):', host, '=>', resolvedHost);
             return resolvedHost;
         }
     } catch (err) {
-        console.warn('Public DNS lookup failed:', err.code || err.message);
+        console.warn('Public DNS IPv4 lookup failed:', err.code || err.message);
+    }
+
+    // As a last resort, try any address family (may return IPv6 which can fail in some envs).
+    try {
+        const res = await dns.promises.lookup(host);
+        resolvedHost = res.address;
+        console.log('DNS lookup succeeded (system any):', host, '=>', resolvedHost);
+        return resolvedHost;
+    } catch (err) {
+        console.warn('System DNS any-family lookup failed:', err.code || err.message);
     }
 
     return null;
