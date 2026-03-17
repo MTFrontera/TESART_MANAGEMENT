@@ -485,17 +485,17 @@ app.get('/:page', (req, res, next) => {
 });
 
 initializeDB().then(() => {
-    const PORT = process.env.PORT || 3000;
-    app.listen(PORT, () => {
-        console.log(`Server running on port ${PORT}`);
+    const port = process.env.PORT || 4000;
+    app.listen(port, () => {
+        console.log(`Server running on port ${port}`);
         console.log('TiDB database connected and ready');
     });
 }).catch(err => {
     console.error('Failed to initialize database:', err);
     // Still start the server even if DB fails, for debugging
-    const PORT = process.env.PORT || 3000;
-    app.listen(PORT, () => {
-        console.log(`Server running on port ${PORT} (DB connection failed)`);
+    const port = process.env.PORT || 4000;
+    app.listen(port, () => {
+        console.log(`Server running on port ${port} (DB connection failed)`);
     });
 });
 
