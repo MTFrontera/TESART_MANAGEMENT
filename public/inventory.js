@@ -18,7 +18,8 @@ async function loadInventory() {
                 </td>
                 <td class="text-muted small">${i.LastUpdated}</td>
                 <td>
-                    <button class="btn btn-sm btn-outline-primary" onclick="adjustStock(${i.InventoryID}, ${i.StockQuantity})">Adjust</button>
+                    <button class="btn btn-sm btn-outline-primary me-2" onclick="adjustStock(${i.InventoryID}, ${i.StockQuantity})">Adjust</button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteInventory(${i.InventoryID})">Delete</button>
                 </td>
             </tr>
         `).join('');
@@ -75,6 +76,21 @@ async function adjustStock(id, current) {
             console.error('Failed to update stock:', error);
             alert('Unable to update stock. See console for details.');
         }
+    }
+}
+
+async function deleteInventory(id) {
+    if (!confirm('Remove inventory tracking for this item?')) return;
+
+    try {
+        const res = await fetch(`${API_URL}/${id}`, {
+            method: 'DELETE'
+        });
+        if (!res.ok) throw new Error(`Delete failed (${res.status})`);
+        await loadInventory();
+    } catch (error) {
+        console.error('Failed to delete inventory tracking:', error);
+        alert('Unable to delete inventory record. See console for details.');
     }
 }
 

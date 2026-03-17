@@ -6,7 +6,7 @@ async function loadDashboard() {
         // Update the UI with real numbers
         document.getElementById('statRevenue').innerText = `₱${parseFloat(data.revenue).toLocaleString()}`;
         document.getElementById('statCustomers').innerText = data.customers;
-        document.getElementById('statStock').innerText = data.lowStock;
+        document.getElementById('statStock').innerText = data.lowstock;
         
     } catch (error) {
         console.error("Dashboard failed to load:", error);

@@ -41,17 +41,19 @@ const db = new Pool({
 function normalizeRow(row) {
     const normalized = {};
     Object.keys(row).forEach(key => {
+        const lowerKey = key.toLowerCase();
         // Map common lowercase keys to proper case
         const keyMap = {
             'customerid': 'CustomerID',
+            'customername': 'CustomerName',  // Old schema
             'firstname': 'FirstName',
             'lastname': 'LastName',
             'email': 'Email',
             'phonenumber': 'PhoneNumber',
             'address': 'Address',
+            'contactnumber': 'ContactNumber',
             'employeeid': 'EmployeeID',
             'role': 'Role',
-            'contactnumber': 'ContactNumber',
             'reportsto': 'ReportsTo',
             'productid': 'ProductID',
             'productname': 'ProductName',
@@ -62,7 +64,11 @@ function normalizeRow(row) {
             'warranty': 'Warranty',
             'quantityinstock': 'QuantityInStock',
             'orderid': 'OrderID',
+            'ordername': 'OrderName',
             'orderdate': 'OrderDate',
+            'orderstatus': 'OrderStatus',
+            'totalamount': 'TotalAmount',
+            'employeename': 'EmployeeName',
             'orderdetailid': 'OrderDetailID',
             'quantity': 'Quantity',
             'subtotal': 'Subtotal',
@@ -71,13 +77,30 @@ function normalizeRow(row) {
             'paymentdate': 'PaymentDate',
             'paymentmethod': 'PaymentMethod',
             'amount': 'Amount',
+            'amountpaid': 'Amount',
+            'paymentstatus': 'Status',
+            'inventoryid': 'InventoryID',
+            'stockquantity': 'StockQuantity',
+            'lastupdated': 'LastUpdated',
+            'deliveryid': 'DeliveryID',
+            'deliverytype': 'DeliveryType',
+            'deliverystatus': 'DeliveryStatus',
             'shipper': 'Shipper',
             'trackingnumber': 'TrackingNumber',
             'currentlocation': 'CurrentLocation',
             'deliverydate': 'DeliveryDate',
             'date': 'Date'
         };
-        const newKey = keyMap[key.toLowerCase()] || key;
+        
+        // Try exact match first, then try lowercase
+        let newKey = keyMap[key];
+        if (!newKey) {
+            newKey = keyMap[lowerKey];
+        }
+        if (!newKey) {
+            newKey = key;
+        }
+        
         normalized[newKey] = row[key];
     });
     return normalized;
@@ -273,11 +296,26 @@ app.delete('/api/products/:id', (req, res) => {
 
 app.get('/api/customers', (req, res) => {
 
-    db.query('SELECT * FROM customer ORDER BY CustomerID DESC', (err, results) => {
+    db.query(`SELECT 
+        customerid,
+        customername,
+        contactnumber as phonenumber,
+        address
+    FROM customer ORDER BY customerid DESC`, (err, results) => {
 
         if (err) return res.status(500).send(err);
 
-        res.json(results.rows.map(normalizeRow));
+        const data = results.rows.map(normalizeRow).map(row => {
+            // Parse customername into FirstName and LastName
+            const nameParts = row.CustomerName ? row.CustomerName.split(' ') : ['', ''];
+            return {
+                ...row,
+                FirstName: nameParts[0] || '',
+                LastName: nameParts[nameParts.length - 1] || '',
+                Email: ''  // Old schema doesn't have email
+            };
+        });
+        res.json(data);
 
     });
 
@@ -381,7 +419,9 @@ app.get('/api/orders', (req, res) => {
 
         if (err) return res.status(500).send(err);
 
-        res.json(results.rows.map(normalizeRow));
+        const normalized = results.rows.map(normalizeRow);
+        console.log('ORDERS normalized sample:', normalized[0]);
+        res.json(normalized);
 
     });
 
@@ -550,6 +590,14 @@ app.put('/api/inventory/:id', (req, res) => {
 });
 
 
+
+// DELETE: Remove inventory tracking for a product
+app.delete('/api/inventory/:id', (req, res) => {
+    db.query('DELETE FROM inventory WHERE InventoryID = $1', [req.params.id], (err) => {
+        if (err) return res.status(500).send(err);
+        res.send('Inventory tracking removed!');
+    });
+});
 
 // POST: Link a new product to the inventory tracker
 

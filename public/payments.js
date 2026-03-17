@@ -12,10 +12,10 @@ async function loadPayments() {
             <td>${p.CustomerName}</td>
             <td class="text-muted small">${p.Date}</td>
             <td><span class="badge bg-light text-dark border">${p.PaymentMethod}</span></td>
-            <td class="fw-bold">₱${parseFloat(p.AmountPaid).toFixed(2)}</td>
+            <td class="fw-bold">₱${parseFloat(p.Amount).toFixed(2)}</td>
             <td>
-                <span class="badge ${p.PaymentStatus === 'Full' ? 'bg-success' : 'bg-warning'}">
-                    ${p.PaymentStatus}
+                <span class="badge ${p.Status === 'Full' ? 'bg-success' : 'bg-warning'}">
+                    ${p.Status}
                 </span>
             </td>
         </tr>
@@ -34,7 +34,7 @@ async function recordPayment() {
         OrderID: document.getElementById('payOrderSelect').value,
         PaymentMethod: document.getElementById('payMethod').value,
         AmountPaid: document.getElementById('payAmount').value,
-        PaymentStatus: document.getElementById('payStatus').value
+        PaymentStatus: document.getElementById('payStatus').value || 'Pending'
     };
 
     if(!body.OrderID || !body.AmountPaid) return alert("Please fill in all fields");
