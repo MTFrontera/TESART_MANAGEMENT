@@ -30,11 +30,13 @@ try {
     console.warn('Failed to parse DB URL for logging:', err.message);
 }
 
+// Use explicit SSL settings for hosted Postgres (Supabase, Vercel, Render, etc.).
+// This matches the recommended pattern for Supabase in hosted environments.
 const db = new Pool({
-    connectionString,
-    ssl: connectionString.includes('.supabase.co')
-        ? { rejectUnauthorized: false }
-        : undefined,
+  connectionString,
+  ssl: {
+    rejectUnauthorized: false // This is critical for Supabase on Render/Vercel
+  }
 });
 
 // Helper function to normalize PostgreSQL lowercase column names to proper case
