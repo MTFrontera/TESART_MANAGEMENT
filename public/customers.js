@@ -1,23 +1,30 @@
 const API_URL = window.location.origin + '/api/customers';
 
 async function loadCustomers() {
-    const res = await fetch(API_URL);
-    const data = await res.json();
-    const tbody = document.getElementById('customerTableBody');
-    
-    tbody.innerHTML = data.map(c => `
-        <tr>
-            <td>${c.CustomerID}</td>
-            <td class="fw-bold">${c.FirstName} ${c.LastName}</td>
-            <td>${c.Email}</td>
-            <td>${c.PhoneNumber}</td>
-            <td>${c.Address}</td>
-            <td>
-                <button class="btn btn-sm btn-outline-primary" onclick='editMode(${JSON.stringify(c)})'>Edit</button>
-                <button class="btn btn-sm btn-outline-danger" onclick="deleteCustomer(${c.CustomerID})">Delete</button>
-            </td>
-        </tr>
-    `).join('');
+    try {
+        const res = await fetch(API_URL);
+        if (!res.ok) throw new Error(`Fetch failed (${res.status})`);
+        const data = await res.json();
+        const tbody = document.getElementById('customerTableBody');
+        
+        tbody.innerHTML = data.map(c => `
+            <tr>
+                <td>${c.CustomerID}</td>
+                <td class="fw-bold">${c.FirstName} ${c.LastName}</td>
+                <td>${c.Email}</td>
+                <td>${c.PhoneNumber}</td>
+                <td>${c.Address}</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary" onclick='editMode(${JSON.stringify(c)})'>Edit</button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteCustomer(${c.CustomerID})">Delete</button>
+                </td>
+            </tr>
+        `).join('');
+    } catch (err) {
+        console.error('Failed to load customers:', err);
+        const tbody = document.getElementById('customerTableBody');
+        tbody.innerHTML = '<tr><td colspan="6" class="text-danger">Unable to load customers. Check console for details.</td></tr>';
+    }
 }
 
 async function saveCustomer() {

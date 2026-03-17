@@ -166,7 +166,7 @@ SELECT setval(pg_get_serial_sequence('delivery_pickup','deliveryid'), COALESCE((
 -- ----- Views -----
 CREATE OR REPLACE VIEW ordersummary AS
 SELECT
-  c.CustomerName AS CustomerName,
+  (c.FirstName || ' ' || c.LastName) AS CustomerName,
   o.OrderID AS OrderID,
   o.TotalAmount AS TotalAmount
 FROM customer c

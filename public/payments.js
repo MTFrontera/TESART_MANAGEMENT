@@ -1,25 +1,32 @@
 const API_URL = window.location.origin + '/api/payments';
 
 async function loadPayments() {
-    const res = await fetch(API_URL);
-    const data = await res.json();
-    const tbody = document.getElementById('paymentTableBody');
-    
-    tbody.innerHTML = data.map(p => `
-        <tr>
-            <td>#${p.PaymentID}</td>
-            <td class="fw-bold text-primary">Order #${p.OrderID}</td>
-            <td>${p.CustomerName}</td>
-            <td class="text-muted small">${p.Date}</td>
-            <td><span class="badge bg-light text-dark border">${p.PaymentMethod}</span></td>
-            <td class="fw-bold">₱${parseFloat(p.Amount).toFixed(2)}</td>
-            <td>
-                <span class="badge ${p.Status === 'Full' ? 'bg-success' : 'bg-warning'}">
-                    ${p.Status}
-                </span>
-            </td>
-        </tr>
-    `).join('');
+    try {
+        const res = await fetch(API_URL);
+        if (!res.ok) throw new Error(`Fetch failed (${res.status})`);
+        const data = await res.json();
+        const tbody = document.getElementById('paymentTableBody');
+        
+        tbody.innerHTML = data.map(p => `
+            <tr>
+                <td>#${p.PaymentID}</td>
+                <td class="fw-bold text-primary">Order #${p.OrderID}</td>
+                <td>${p.CustomerName}</td>
+                <td class="text-muted small">${p.Date}</td>
+                <td><span class="badge bg-light text-dark border">${p.PaymentMethod}</span></td>
+                <td class="fw-bold">₱${parseFloat(p.Amount).toFixed(2)}</td>
+                <td>
+                    <span class="badge ${p.Status === 'Full' ? 'bg-success' : 'bg-warning'}">
+                        ${p.Status}
+                    </span>
+                </td>
+            </tr>
+        `).join('');
+    } catch (err) {
+        console.error('Failed to load payments:', err);
+        const tbody = document.getElementById('paymentTableBody');
+        if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="text-danger">Unable to load payments. Check console for details.</td></tr>';
+    }
 }
 
 async function loadOrdersForDropdown() {

@@ -298,8 +298,11 @@ app.get('/api/customers', (req, res) => {
 
     db.query(`SELECT 
         customerid,
-        customername,
-        contactnumber as phonenumber,
+        firstname || ' ' || lastname AS customername,
+        firstname,
+        lastname,
+        email,
+        phonenumber as phonenumber,
         address
     FROM customer ORDER BY customerid DESC`, (err, results) => {
 
@@ -310,9 +313,9 @@ app.get('/api/customers', (req, res) => {
             const nameParts = row.CustomerName ? row.CustomerName.split(' ') : ['', ''];
             return {
                 ...row,
-                FirstName: nameParts[0] || '',
-                LastName: nameParts[nameParts.length - 1] || '',
-                Email: ''  // Old schema doesn't have email
+                FirstName: row.FirstName || nameParts[0] || '',
+                LastName: row.LastName || nameParts[nameParts.length - 1] || '',
+                Email: row.Email || ''
             };
         });
         res.json(data);
@@ -397,7 +400,7 @@ app.get('/api/orders', (req, res) => {
 
             o.OrderID,
 
-            c.CustomerName,
+            c.FirstName || ' ' || c.LastName AS CustomerName,
 
             e.FirstName || ' ' || e.LastName AS EmployeeName,
 
@@ -639,7 +642,7 @@ app.get('/api/payments', (req, res) => {
 
             p.OrderID,
 
-            c.CustomerName,
+            c.FirstName || ' ' || c.LastName AS CustomerName,
 
             TO_CHAR(p.PaymentDate, 'Mon DD, YYYY HH24:MI') as Date,
 
@@ -709,7 +712,7 @@ app.get('/api/logistics', (req, res) => {
 
             dp.OrderID,
 
-            c.CustomerName,
+            c.FirstName || ' ' || c.LastName AS CustomerName,
 
             dp.DeliveryType,
 
@@ -792,7 +795,7 @@ app.get('/api/reports/summary', (req, res) => {
     const query = `
         SELECT
             o.OrderID,
-            c.CustomerName,
+            (c.FirstName || ' ' || c.LastName) AS CustomerName,
             o.OrderDate,
             o.TotalAmount,
             o.OrderStatus
