@@ -1,976 +1,449 @@
 const path = require('path');
-
 const express = require('express');
-
-const { Pool } = require('pg');
-const dns = require('dns');
+const { MongoClient } = require('mongodb');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 
-// Load local environment variables (for local development)
-// Create a .env.local file in the project root with DATABASE_URL if you want to use Supabase locally.
 require('dotenv').config({ path: '.env.local' });
 
 const app = express();
-
 app.use(cors());
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Database Connection
-// Supports local Postgres or Supabase (auto-enables SSL for Supabase).
-const rawDbUrl = process.env.DATABASE_URL || 'postgresql://postgres:password@localhost:5432/tesart';
-const connectionString = rawDbUrl.replace(/\[|\]/g, ''); // strip accidental bracket wrappers
+// MongoDB Connection
+const mongoUrl = process.env.DATABASE_URL || 'mongodb://localhost:27017/tesart';
+const client = new MongoClient(mongoUrl);
 
-// Log the effective DB host/port/dbname (not the password) for debugging.
-// This confirms which DATABASE_URL is actually being used at runtime.
-let resolvedHost = null;
-try {
-    const u = new URL(connectionString);
-    const safeUrl = `${u.protocol}//${u.username}@${u.hostname}:${u.port}${u.pathname}`;
-    console.log('Using DB:', safeUrl, 'ssl=', u.hostname.includes('.supabase.co'));
-    console.log('Raw process.env.DATABASE_URL (redacted):',
-        process.env.DATABASE_URL ? process.env.DATABASE_URL.replace(/:[^@]+@/, ':*****@') : '(none)');
-} catch (err) {
-    console.warn('Failed to parse DB URL for logging:', err.message);
-}
-
-// If DNS resolution fails inside the deployment environment, try resolving via public DNS.
-async function resolveDatabaseHost(host) {
-    if (!host) return null;
-
-    // Prefer IPv4 resolution since some hosted environments may not support IPv6 exit.
-    try {
-        const res = await dns.promises.lookup(host, { family: 4 });
-        resolvedHost = res.address;
-        console.log('DNS lookup succeeded (system, IPv4):', host, '=>', resolvedHost);
-        return resolvedHost;
-    } catch (err) {
-        console.warn('System DNS IPv4 lookup failed:', err.code || err.message);
-    }
-
-    try {
-        const resolver = new dns.Resolver();
-        resolver.setServers(['8.8.8.8', '1.1.1.1']);
-        const addresses = await resolver.resolve4(host);
-        if (addresses && addresses.length) {
-            resolvedHost = addresses[0];
-            console.log('DNS lookup succeeded (public IPv4):', host, '=>', resolvedHost);
-            return resolvedHost;
-        }
-    } catch (err) {
-        console.warn('Public DNS IPv4 lookup failed:', err.code || err.message);
-    }
-
-    // As a last resort, try any address family (may return IPv6 which can fail in some envs).
-    try {
-        const res = await dns.promises.lookup(host);
-        resolvedHost = res.address;
-        console.log('DNS lookup succeeded (system any):', host, '=>', resolvedHost);
-        return resolvedHost;
-    } catch (err) {
-        console.warn('System DNS any-family lookup failed:', err.code || err.message);
-    }
-
-    return null;
-}
-
-async function createPool() {
-    const u = new URL(connectionString);
-    const host = u.hostname;
-    const port = u.port || 5432;
-    const user = u.username;
-    const password = u.password;
-    const database = u.pathname.replace(/^\//, '');
-
-    const ip = await resolveDatabaseHost(host);
-
-    const poolConfig = {
-        host: ip || host,
-        port,
-        user,
-        password,
-        database,
-        ssl: {
-            rejectUnauthorized: false
-        }
-    };
-
-    if (!ip) {
-        console.warn('Proceeding with original host (DNS may not resolve from this environment).');
-    }
-
-    return new Pool(poolConfig);
-}
-
-// Create the pool asynchronously but keep a synchronous reference for the routes.
 let db;
-createPool().then(p => {
-    db = p;
-}).catch(err => {
-    console.error('Failed to create DB pool:', err);
-});
+let collections = {};
 
-// Helper function to normalize PostgreSQL lowercase column names to proper case
-function normalizeRow(row) {
-    const normalized = {};
-    Object.keys(row).forEach(key => {
-        const lowerKey = key.toLowerCase();
-        // Map common lowercase keys to proper case
-        const keyMap = {
-            'customerid': 'CustomerID',
-            'customername': 'CustomerName',  // Old schema
-            'firstname': 'FirstName',
-            'lastname': 'LastName',
-            'email': 'Email',
-            'phonenumber': 'PhoneNumber',
-            'address': 'Address',
-            'contactnumber': 'ContactNumber',
-            'employeeid': 'EmployeeID',
-            'role': 'Role',
-            'reportsto': 'ReportsTo',
-            'productid': 'ProductID',
-            'productname': 'ProductName',
-            'category': 'Category',
-            'unitprice': 'UnitPrice',
-            'description': 'Description',
-            'returnpolicy': 'ReturnPolicy',
-            'warranty': 'Warranty',
-            'quantityinstock': 'QuantityInStock',
-            'orderid': 'OrderID',
-            'ordername': 'OrderName',
-            'orderdate': 'OrderDate',
-            'orderstatus': 'OrderStatus',
-            'totalamount': 'TotalAmount',
-            'employeename': 'EmployeeName',
-            'orderdetailid': 'OrderDetailID',
-            'quantity': 'Quantity',
-            'subtotal': 'Subtotal',
-            'status': 'Status',
-            'paymentid': 'PaymentID',
-            'paymentdate': 'PaymentDate',
-            'paymentmethod': 'PaymentMethod',
-            'amount': 'Amount',
-            'amountpaid': 'Amount',
-            'paymentstatus': 'Status',
-            'inventoryid': 'InventoryID',
-            'stockquantity': 'StockQuantity',
-            'lastupdated': 'LastUpdated',
-            'deliveryid': 'DeliveryID',
-            'deliverytype': 'DeliveryType',
-            'deliverystatus': 'DeliveryStatus',
-            'shipper': 'Shipper',
-            'trackingnumber': 'TrackingNumber',
-            'currentlocation': 'CurrentLocation',
-            'deliverydate': 'DeliveryDate',
-            'date': 'Date'
+async function initializeDB() {
+    try {
+        await client.connect();
+        db = client.db();
+        
+        collections = {
+            customers: db.collection('customer'),
+            employees: db.collection('employee'),
+            products: db.collection('product'),
+            orders: db.collection('order'),
+            orderdetails: db.collection('orderdetails'),
+            inventory: db.collection('inventory'),
+            payments: db.collection('payment'),
+            delivery: db.collection('delivery_pickup'),
+            counters: db.collection('counters')
         };
         
-        // Try exact match first, then try lowercase
-        let newKey = keyMap[key];
-        if (!newKey) {
-            newKey = keyMap[lowerKey];
-        }
-        if (!newKey) {
-            newKey = key;
-        }
+        console.log('MongoDB connected');
         
-        normalized[newKey] = row[key];
-    });
-    return normalized;
+        for (const [key, val] of Object.entries({
+            CustomerID: 5, EmployeeID: 7, ProductID: 16,
+            OrderID: 5, OrderDetailID: 6, InventoryID: 6,
+            PaymentID: 3, DeliveryID: 2
+        })) {
+            if (!await collections.counters.findOne({ _id: key })) {
+                await collections.counters.insertOne({ _id: key, seq: val });
+            }
+        }
+    } catch (err) {
+        console.error('MongoDB connection failed:', err.message);
+        process.exit(1);
+    }
 }
 
-// ==========================================
+async function getNextId(counterName) {
+    const result = await collections.counters.findOneAndUpdate(
+        { _id: counterName },
+        { $inc: { seq: 1 } },
+        { returnDocument: 'after' }
+    );
+    return result.value?.seq || 1;
+}
 
-// ORDER DETAILS ROUTES (Sales)
-
-// ==========================================
-
-
-
-app.get('/api/orderdetails', (req, res) => {
-
-    const query = `
-
-        SELECT
-
-            od.OrderDetailID,
-
-            od.OrderID,
-
-            TO_CHAR(o.OrderDate, 'Mon DD, YYYY') as Date,
-
-            p.ProductName,
-
-            od.Quantity,
-
-            od.UnitPrice,
-
-            od.Subtotal
-
-        FROM orderdetails od
-
-        JOIN "order" o ON od.OrderID = o.OrderID
-
-        JOIN product p ON od.ProductID = p.ProductID
-
-        ORDER BY od.OrderDetailID DESC
-
-    `;
-
-    db.query(query, (err, results) => {
-
-        if (err) return res.status(500).send(err);
-
-        res.json(results.rows.map(normalizeRow));
-
-    });
-
+// ORDER DETAILS ROUTES
+app.get('/api/orderdetails', async (req, res) => {
+    try {
+        const results = await collections.orderdetails.aggregate([
+            { $lookup: { from: 'order', localField: 'OrderID', foreignField: 'OrderID', as: 'order' } },
+            { $unwind: '$order' },
+            { $lookup: { from: 'product', localField: 'ProductID', foreignField: 'ProductID', as: 'product' } },
+            { $unwind: '$product' },
+            { $project: { OrderDetailID: 1, OrderID: 1, Date: { $dateToString: { format: '%b %d, %Y', date: '$order.OrderDate' } }, ProductName: '$product.ProductName', Quantity: 1, UnitPrice: 1, Subtotal: 1 } },
+            { $sort: { OrderDetailID: -1 } }
+        ]).toArray();
+        res.json(results);
+    } catch (err) {
+        res.status(500).send({ error: err.message });
+    }
 });
 
-
-
-app.get('/api/dropdowns', (req, res) => {
-
-    db.query('SELECT OrderID FROM "order"', (err, orders) => {
-
-        if (err) throw err;
-
-        db.query('SELECT ProductID, ProductName, UnitPrice FROM product', (err, products) => {
-
-            if (err) throw err;
-
-            res.json({ orders: orders.rows.map(normalizeRow), products: products.rows.map(normalizeRow) });
-
-        });
-
-    });
-
+app.get('/api/dropdowns', async (req, res) => {
+    try {
+        const orders = await collections.orders.find({}, { projection: { OrderID: 1 } }).toArray();
+        const products = await collections.products.find({}, { projection: { ProductID: 1, ProductName: 1, UnitPrice: 1 } }).toArray();
+        res.json({ orders, products });
+    } catch (err) {
+        res.status(500).send({ error: err.message });
+    }
 });
 
-
-
-app.post('/api/orderdetails', (req, res) => {
-
-    const { OrderID, ProductID, Quantity, UnitPrice } = req.body;
-
-    const Subtotal = Quantity * UnitPrice;
-
-
-
-    const query = 'INSERT INTO orderdetails (OrderID, ProductID, Quantity, UnitPrice, Subtotal) VALUES ($1, $2, $3, $4, $5)';
-
-    db.query(query, [OrderID, ProductID, Quantity, UnitPrice, Subtotal], (err, result) => {
-
-        if (err) return res.status(500).send(err);
-
+app.post('/api/orderdetails', async (req, res) => {
+    try {
+        const { OrderID, ProductID, Quantity, UnitPrice } = req.body;
+        const OrderDetailID = await getNextId('OrderDetailID');
+        await collections.orderdetails.insertOne({ OrderDetailID, OrderID, ProductID, Quantity, UnitPrice, Subtotal: Quantity * UnitPrice });
         res.send('Added successfully!');
-
-    });
-
+    } catch (err) {
+        res.status(500).send({ error: err.message });
+    }
 });
 
-
-
-app.delete('/api/orderdetails/:id', (req, res) => {
-
-    db.query('DELETE FROM orderdetails WHERE OrderDetailID = $1', [req.params.id], (err) => {
-
-        if (err) return res.status(500).send(err);
-
+app.delete('/api/orderdetails/:id', async (req, res) => {
+    try {
+        await collections.orderdetails.deleteOne({ OrderDetailID: parseInt(req.params.id) });
         res.send('Deleted successfully!');
-
-    });
-
+    } catch (err) {
+        res.status(500).send({ error: err.message });
+    }
 });
 
-
-
-// ==========================================
-
-// PRODUCT MANAGEMENT ROUTES (Inventory)
-
-// ==========================================
-
-
-
-app.get('/api/products', (req, res) => {
-
-    db.query('SELECT * FROM product ORDER BY ProductID DESC', (err, results) => {
-
-        if (err) return res.status(500).send(err);
-
-        res.json(results.rows.map(normalizeRow));
-
-    });
-
+// PRODUCT ROUTES
+app.get('/api/products', async (req, res) => {
+    try {
+        const results = await collections.products.find({}).sort({ ProductID: -1 }).toArray();
+        res.json(results);
+    } catch (err) {
+        res.status(500).send({ error: err.message });
+    }
 });
 
-
-
-app.post('/api/products', (req, res) => {
-
-    const { ProductName, Description, UnitPrice, Category } = req.body;
-
-    const query = 'INSERT INTO product (ProductName, Description, UnitPrice, Category) VALUES ($1, $2, $3, $4)';
-
-    db.query(query, [ProductName, Description, UnitPrice, Category], (err, result) => {
-
-        if (err) return res.status(500).send(err);
-
+app.post('/api/products', async (req, res) => {
+    try {
+        const { ProductName, Description, UnitPrice, Category } = req.body;
+        const ProductID = await getNextId('ProductID');
+        await collections.products.insertOne({ ProductID, ProductName, Description, UnitPrice, Category });
         res.send('Product added!');
-
-    });
-
+    } catch (err) {
+        res.status(500).send({ error: err.message });
+    }
 });
 
-
-
-app.put('/api/products/:id', (req, res) => {
-
-    const { ProductName, Description, UnitPrice, Category } = req.body;
-
-    const query = 'UPDATE product SET ProductName = $1, Description = $2, UnitPrice = $3, Category = $4 WHERE ProductID = $5';
-
-    db.query(query, [ProductName, Description, UnitPrice, Category, req.params.id], (err) => {
-
-        if (err) return res.status(500).send(err);
-
+app.put('/api/products/:id', async (req, res) => {
+    try {
+        const { ProductName, Description, UnitPrice, Category } = req.body;
+        await collections.products.updateOne({ ProductID: parseInt(req.params.id) }, { $set: { ProductName, Description, UnitPrice, Category } });
         res.send('Product updated!');
-
-    });
-
+    } catch (err) {
+        res.status(500).send({ error: err.message });
+    }
 });
 
-
-
-app.delete('/api/products/:id', (req, res) => {
-
-    db.query('DELETE FROM product WHERE ProductID = $1', [req.params.id], (err) => {
-
-        if (err) return res.status(500).send({ error: "Cannot delete product because it is linked to existing orders." });
-
+app.delete('/api/products/:id', async (req, res) => {
+    try {
+        if (await collections.orderdetails.findOne({ ProductID: parseInt(req.params.id) })) {
+            return res.status(500).send({ error: "Cannot delete product because it is linked to existing orders." });
+        }
+        await collections.products.deleteOne({ ProductID: parseInt(req.params.id) });
         res.send('Product deleted!');
-
-    });
-
+    } catch (err) {
+        res.status(500).send({ error: err.message });
+    }
 });
 
-
-
-// ==========================================
-
-// CUSTOMER MANAGEMENT ROUTES
-
-// ==========================================
-
-
-
-// GET: All Customers
-
-app.get('/api/customers', (req, res) => {
-
-    db.query(`SELECT 
-        customerid,
-        firstname || ' ' || lastname AS customername,
-        firstname,
-        lastname,
-        email,
-        phonenumber as phonenumber,
-        address
-    FROM customer ORDER BY customerid DESC`, (err, results) => {
-
-        if (err) return res.status(500).send(err);
-
-        const data = results.rows.map(normalizeRow).map(row => {
-            // Parse customername into FirstName and LastName
-            const nameParts = row.CustomerName ? row.CustomerName.split(' ') : ['', ''];
-            return {
-                ...row,
-                FirstName: row.FirstName || nameParts[0] || '',
-                LastName: row.LastName || nameParts[nameParts.length - 1] || '',
-                Email: row.Email || ''
-            };
-        });
+// CUSTOMER ROUTES
+app.get('/api/customers', async (req, res) => {
+    try {
+        const results = await collections.customers.find({}).sort({ CustomerID: -1 }).toArray();
+        const data = results.map(c => ({ ...c, CustomerName: `${c.FirstName} ${c.LastName}` }));
         res.json(data);
-
-    });
-
+    } catch (err) {
+        res.status(500).send({ error: err.message });
+    }
 });
 
-
-
-// POST: Add Customer
-
-app.post('/api/customers', (req, res) => {
-
-    const { FirstName, LastName, Email, PhoneNumber, Address } = req.body;
-
-    const query = 'INSERT INTO customer (FirstName, LastName, Email, PhoneNumber, Address) VALUES ($1, $2, $3, $4, $5)';
-
-    db.query(query, [FirstName, LastName, Email, PhoneNumber, Address], (err, result) => {
-
-        if (err) return res.status(500).send(err);
-
+app.post('/api/customers', async (req, res) => {
+    try {
+        const { FirstName, LastName, Email, PhoneNumber, Address } = req.body;
+        const CustomerID = await getNextId('CustomerID');
+        await collections.customers.insertOne({ CustomerID, FirstName, LastName, Email, PhoneNumber, Address });
         res.send('Customer registered!');
-
-    });
-
+    } catch (err) {
+        res.status(500).send({ error: err.message });
+    }
 });
 
-
-
-// PUT: Update Customer (The Alter)
-
-app.put('/api/customers/:id', (req, res) => {
-
-    const { FirstName, LastName, Email, PhoneNumber, Address } = req.body;
-
-    const query = 'UPDATE customer SET FirstName = $1, LastName = $2, Email = $3, PhoneNumber = $4, Address = $5 WHERE CustomerID = $6';
-
-    db.query(query, [FirstName, LastName, Email, PhoneNumber, Address, req.params.id], (err) => {
-
-        if (err) return res.status(500).send(err);
-
+app.put('/api/customers/:id', async (req, res) => {
+    try {
+        const { FirstName, LastName, Email, PhoneNumber, Address } = req.body;
+        await collections.customers.updateOne({ CustomerID: parseInt(req.params.id) }, { $set: { FirstName, LastName, Email, PhoneNumber, Address } });
         res.send('Customer details updated!');
-
-    });
-
+    } catch (err) {
+        res.status(500).send({ error: err.message });
+    }
 });
 
-
-
-// DELETE: Remove Customer
-
-app.delete('/api/customers/:id', (req, res) => {
-
-    db.query('DELETE FROM customer WHERE CustomerID = $1', [req.params.id], (err) => {
-
-        if (err) return res.status(500).send({ error: "Cannot delete customer with active order history." });
-
+app.delete('/api/customers/:id', async (req, res) => {
+    try {
+        if (await collections.orders.findOne({ CustomerID: parseInt(req.params.id) })) {
+            return res.status(500).send({ error: "Cannot delete customer with active order history." });
+        }
+        await collections.customers.deleteOne({ CustomerID: parseInt(req.params.id) });
         res.send('Customer removed!');
-
-    });
-
+    } catch (err) {
+        res.status(500).send({ error: err.message });
+    }
 });
 
-
-
-// ==========================================
-
-// ORDER HEADER ROUTES
-
-// ==========================================
-
-
-
-// GET: All Orders with Customer and Employee names
-
-app.get('/api/orders', (req, res) => {
-
-    const query = `
-
-        SELECT
-
-            o.OrderID,
-
-            c.FirstName || ' ' || c.LastName AS CustomerName,
-
-            e.FirstName || ' ' || e.LastName AS EmployeeName,
-
-            TO_CHAR(o.OrderDate, 'Mon DD, YYYY') as Date,
-
-            o.OrderStatus,
-
-            o.TotalAmount
-
-        FROM "order" o
-
-        JOIN customer c ON o.CustomerID = c.CustomerID
-
-        JOIN employee e ON o.EmployeeID = e.EmployeeID
-
-    `;
-
-    db.query(query, (err, results) => {
-
-        if (err) return res.status(500).send(err);
-
-        const normalized = results.rows.map(normalizeRow);
-        console.log('ORDERS normalized sample:', normalized[0]);
-        res.json(normalized);
-
-    });
-
+// ORDER ROUTES
+app.get('/api/orders', async (req, res) => {
+    try {
+        const results = await collections.orders.aggregate([
+            { $lookup: { from: 'customer', localField: 'CustomerID', foreignField: 'CustomerID', as: 'customer' } },
+            { $unwind: '$customer' },
+            { $lookup: { from: 'employee', localField: 'EmployeeID', foreignField: 'EmployeeID', as: 'employee' } },
+            { $unwind: '$employee' },
+            { $project: { OrderID: 1, CustomerName: { $concat: ['$customer.FirstName', ' ', '$customer.LastName'] }, EmployeeName: { $concat: ['$employee.FirstName', ' ', '$employee.LastName'] }, Date: { $dateToString: { format: '%b %d, %Y', date: '$OrderDate' } }, OrderStatus: 1, TotalAmount: 1 } }
+        ]).toArray();
+        res.json(results);
+    } catch (err) {
+        res.status(500).send({ error: err.message });
+    }
 });
 
-
-
-// POST: Create a new Order record
-
-app.post('/api/orders', (req, res) => {
-
-    const { CustomerID, EmployeeID, OrderDate, OrderStatus, DeliveryMethod, TotalAmount } = req.body;
-
-    const query = 'INSERT INTO "order" (CustomerID, EmployeeID, OrderDate, OrderStatus, DeliveryMethod, TotalAmount) VALUES ($1, $2, $3, $4, $5, $6)';
-
-    db.query(query, [CustomerID, EmployeeID, OrderDate, OrderStatus, DeliveryMethod, TotalAmount], (err, result) => {
-
-        if (err) return res.status(500).send(err);
-
+app.post('/api/orders', async (req, res) => {
+    try {
+        const { CustomerID, EmployeeID, OrderDate, OrderStatus, DeliveryMethod, TotalAmount } = req.body;
+        const OrderID = await getNextId('OrderID');
+        await collections.orders.insertOne({ OrderID, CustomerID, EmployeeID, OrderDate: new Date(OrderDate), OrderStatus, DeliveryMethod, TotalAmount });
         res.send('Order created!');
-
-    });
-
+    } catch (err) {
+        res.status(500).send({ error: err.message });
+    }
 });
 
-
-
-// ==========================================
-
-// EMPLOYEE MANAGEMENT ROUTES
-
-// ==========================================
-
-
-
-// GET: All Employees
-
-app.get('/api/employees', (req, res) => {
-
-    db.query('SELECT * FROM employee ORDER BY EmployeeID ASC', (err, results) => {
-
-        if (err) return res.status(500).send(err);
-
-        res.json(results.rows.map(normalizeRow));
-
-    });
-
+// EMPLOYEE ROUTES
+app.get('/api/employees', async (req, res) => {
+    try {
+        const results = await collections.employees.find({}).sort({ EmployeeID: 1 }).toArray();
+        res.json(results);
+    } catch (err) {
+        res.status(500).send({ error: err.message });
+    }
 });
 
-
-
-// POST: Add Employee
-
-app.post('/api/employees', (req, res) => {
-
-    const { FirstName, LastName, Role, ContactNumber, ReportsTo } = req.body;
-
-    const query = 'INSERT INTO employee (FirstName, LastName, Role, ContactNumber, ReportsTo) VALUES ($1, $2, $3, $4, $5)';
-
-    db.query(query, [FirstName, LastName, Role, ContactNumber, ReportsTo || null], (err, result) => {
-
-        if (err) return res.status(500).send(err);
-
+app.post('/api/employees', async (req, res) => {
+    try {
+        const { FirstName, LastName, Role, ContactNumber, ReportsTo } = req.body;
+        const EmployeeID = await getNextId('EmployeeID');
+        await collections.employees.insertOne({ EmployeeID, FirstName, LastName, Role, ContactNumber, ReportsTo: ReportsTo || null });
         res.send('Employee added!');
-
-    });
-
+    } catch (err) {
+        res.status(500).send({ error: err.message });
+    }
 });
 
-
-
-// PUT: Update Employee (The "Alter")
-
-app.put('/api/employees/:id', (req, res) => {
-
-    const { FirstName, LastName, Role, ContactNumber, ReportsTo } = req.body;
-
-    const query = 'UPDATE employee SET FirstName = $1, LastName = $2, Role = $3, ContactNumber = $4, ReportsTo = $5 WHERE EmployeeID = $6';
-
-    db.query(query, [FirstName, LastName, Role, ContactNumber, ReportsTo || null, req.params.id], (err) => {
-
-        if (err) return res.status(500).send(err);
-
+app.put('/api/employees/:id', async (req, res) => {
+    try {
+        const { FirstName, LastName, Role, ContactNumber, ReportsTo } = req.body;
+        await collections.employees.updateOne({ EmployeeID: parseInt(req.params.id) }, { $set: { FirstName, LastName, Role, ContactNumber, ReportsTo: ReportsTo || null } });
         res.send('Employee updated!');
-
-    });
-
+    } catch (err) {
+        res.status(500).send({ error: err.message });
+    }
 });
 
-
-
-// DELETE: Remove Employee
-
-app.delete('/api/employees/:id', (req, res) => {
-
-    db.query('DELETE FROM employee WHERE EmployeeID = $1', [req.params.id], (err) => {
-
-        if (err) return res.status(500).send({ error: "Cannot delete employee assigned to active orders." });
-
+app.delete('/api/employees/:id', async (req, res) => {
+    try {
+        if (await collections.orders.findOne({ EmployeeID: parseInt(req.params.id) })) {
+            return res.status(500).send({ error: "Cannot delete employee assigned to active orders." });
+        }
+        await collections.employees.deleteOne({ EmployeeID: parseInt(req.params.id) });
         res.send('Employee removed!');
-
-    });
-
+    } catch (err) {
+        res.status(500).send({ error: err.message });
+    }
 });
 
-
-
-// ==========================================
-
-// INVENTORY MANAGEMENT ROUTES
-
-// ==========================================
-
-
-
-// GET: All Inventory levels with Product Names
-
-app.get('/api/inventory', (req, res) => {
-
-    const query = `
-
-        SELECT
-
-            i.InventoryID,
-
-            p.ProductName,
-
-            i.StockQuantity,
-
-            TO_CHAR(i.LastUpdated, 'Mon DD, YYYY HH24:MI') as LastUpdated
-
-        FROM inventory i
-
-        JOIN product p ON i.ProductID = p.ProductID
-
-    `;
-
-    db.query(query, (err, results) => {
-
-        if (err) return res.status(500).send(err);
-
-        res.json(results.rows.map(normalizeRow));
-
-    });
-
+// INVENTORY ROUTES
+app.get('/api/inventory', async (req, res) => {
+    try {
+        const results = await collections.inventory.aggregate([
+            { $lookup: { from: 'product', localField: 'ProductID', foreignField: 'ProductID', as: 'product' } },
+            { $unwind: '$product' },
+            { $project: { InventoryID: 1, ProductName: '$product.ProductName', StockQuantity: 1, LastUpdated: { $dateToString: { format: '%b %d, %Y %H:%M', date: '$LastUpdated' } } } }
+        ]).toArray();
+        res.json(results);
+    } catch (err) {
+        res.status(500).send({ error: err.message });
+    }
 });
 
-
-
-// PUT: Update Stock Level (Restock or Manual Adjustment)
-
-app.put('/api/inventory/:id', (req, res) => {
-
-    const { StockQuantity } = req.body;
-
-    const query = 'UPDATE inventory SET StockQuantity = $1, LastUpdated = current_timestamp WHERE InventoryID = $2';
-
-    db.query(query, [StockQuantity, req.params.id], (err) => {
-
-        if (err) return res.status(500).send(err);
-
+app.put('/api/inventory/:id', async (req, res) => {
+    try {
+        const { StockQuantity } = req.body;
+        await collections.inventory.updateOne({ InventoryID: parseInt(req.params.id) }, { $set: { StockQuantity, LastUpdated: new Date() } });
         res.send('Stock updated!');
-
-    });
-
+    } catch (err) {
+        res.status(500).send({ error: err.message });
+    }
 });
 
-
-
-// DELETE: Remove inventory tracking for a product
-app.delete('/api/inventory/:id', (req, res) => {
-    db.query('DELETE FROM inventory WHERE InventoryID = $1', [req.params.id], (err) => {
-        if (err) return res.status(500).send(err);
+app.delete('/api/inventory/:id', async (req, res) => {
+    try {
+        await collections.inventory.deleteOne({ InventoryID: parseInt(req.params.id) });
         res.send('Inventory tracking removed!');
-    });
+    } catch (err) {
+        res.status(500).send({ error: err.message });
+    }
 });
 
-// POST: Link a new product to the inventory tracker
-
-app.post('/api/inventory', (req, res) => {
-
-    const { ProductID, StockQuantity } = req.body;
-
-    const query = 'INSERT INTO inventory (ProductID, StockQuantity, LastUpdated) VALUES ($1, $2, current_timestamp)';
-
-    db.query(query, [ProductID, StockQuantity], (err) => {
-
-        if (err) return res.status(500).send(err);
-
+app.post('/api/inventory', async (req, res) => {
+    try {
+        const { ProductID, StockQuantity } = req.body;
+        const InventoryID = await getNextId('InventoryID');
+        await collections.inventory.insertOne({ InventoryID, ProductID, StockQuantity, LastUpdated: new Date() });
         res.send('Inventory tracking started for product!');
-
-    });
-
+    } catch (err) {
+        res.status(500).send({ error: err.message });
+    }
 });
 
-
-
-// ==========================================
-
-// PAYMENT MANAGEMENT ROUTES
-
-// ==========================================
-
-
-
-// GET: All payments with Order and Customer info
-
-app.get('/api/payments', (req, res) => {
-
-    const query = `
-
-        SELECT
-
-            p.PaymentID,
-
-            p.OrderID,
-
-            c.FirstName || ' ' || c.LastName AS CustomerName,
-
-            TO_CHAR(p.PaymentDate, 'Mon DD, YYYY HH24:MI') as Date,
-
-            p.PaymentMethod,
-
-            p.AmountPaid,
-
-            p.PaymentStatus
-
-        FROM payment p
-
-        JOIN "order" o ON p.OrderID = o.OrderID
-
-        JOIN customer c ON o.CustomerID = c.CustomerID
-
-    `;
-
-    db.query(query, (err, results) => {
-
-        if (err) return res.status(500).send(err);
-
-        res.json(results.rows.map(normalizeRow));
-
-    });
-
+// PAYMENT ROUTES
+app.get('/api/payments', async (req, res) => {
+    try {
+        const results = await collections.payments.aggregate([
+            { $lookup: { from: 'order', localField: 'OrderID', foreignField: 'OrderID', as: 'order' } },
+            { $unwind: '$order' },
+            { $lookup: { from: 'customer', localField: 'order.CustomerID', foreignField: 'CustomerID', as: 'customer' } },
+            { $unwind: '$customer' },
+            { $project: { PaymentID: 1, OrderID: 1, CustomerName: { $concat: ['$customer.FirstName', ' ', '$customer.LastName'] }, Date: { $dateToString: { format: '%b %d, %Y %H:%M', date: '$PaymentDate' } }, PaymentMethod: 1, AmountPaid: 1, PaymentStatus: 1 } }
+        ]).toArray();
+        res.json(results);
+    } catch (err) {
+        res.status(500).send({ error: err.message });
+    }
 });
 
-
-
-// POST: Record a new payment
-
-app.post('/api/payments', (req, res) => {
-
-    const { OrderID, PaymentMethod, AmountPaid, PaymentStatus } = req.body;
-
-    const query = 'INSERT INTO payment (OrderID, PaymentDate, PaymentMethod, AmountPaid, PaymentStatus) VALUES ($1, current_timestamp, $2, $3, $4)';
-
-    db.query(query, [OrderID, PaymentMethod, AmountPaid, PaymentStatus], (err, result) => {
-
-        if (err) return res.status(500).send(err);
-
+app.post('/api/payments', async (req, res) => {
+    try {
+        const { OrderID, PaymentMethod, AmountPaid, PaymentStatus } = req.body;
+        const PaymentID = await getNextId('PaymentID');
+        await collections.payments.insertOne({ PaymentID, OrderID, PaymentDate: new Date(), PaymentMethod, AmountPaid, PaymentStatus });
         res.send('Payment recorded!');
-
-    });
-
+    } catch (err) {
+        res.status(500).send({ error: err.message });
+    }
 });
 
-
-
-// ==========================================
-
-// DELIVERY & PICKUP ROUTES
-
-// ==========================================
-
-
-
-// GET: All delivery/pickup records
-
-app.get('/api/logistics', (req, res) => {
-
-    const query = `
-
-        SELECT
-
-            dp.DeliveryID,
-
-            dp.OrderID,
-
-            c.FirstName || ' ' || c.LastName AS CustomerName,
-
-            dp.DeliveryType,
-
-            TO_CHAR(dp.DeliveryDate, 'Mon DD, YYYY') as Date,
-
-            dp.DeliveryStatus
-
-        FROM delivery_pickup dp
-
-        JOIN "order" o ON dp.OrderID = o.OrderID
-
-        JOIN customer c ON o.CustomerID = c.CustomerID
-
-    `;
-
-    db.query(query, (err, results) => {
-
-        if (err) return res.status(500).send(err);
-
-        res.json(results.rows.map(normalizeRow));
-
-    });
-
+// LOGISTICS ROUTES
+app.get('/api/logistics', async (req, res) => {
+    try {
+        const results = await collections.delivery.aggregate([
+            { $lookup: { from: 'order', localField: 'OrderID', foreignField: 'OrderID', as: 'order' } },
+            { $unwind: '$order' },
+            { $lookup: { from: 'customer', localField: 'order.CustomerID', foreignField: 'CustomerID', as: 'customer' } },
+            { $unwind: '$customer' },
+            { $project: { DeliveryID: 1, OrderID: 1, CustomerName: { $concat: ['$customer.FirstName', ' ', '$customer.LastName'] }, DeliveryType: 1, Date: { $dateToString: { format: '%b %d, %Y', date: '$DeliveryDate' } }, DeliveryStatus: 1 } }
+        ]).toArray();
+        res.json(results);
+    } catch (err) {
+        res.status(500).send({ error: err.message });
+    }
 });
 
-
-
-// POST: Schedule a new delivery/pickup
-
-app.post('/api/logistics', (req, res) => {
-
-    const { OrderID, DeliveryType, DeliveryDate, DeliveryStatus } = req.body;
-
-    const query = 'INSERT INTO delivery_pickup (OrderID, DeliveryType, DeliveryDate, DeliveryStatus) VALUES ($1, $2, $3, $4)';
-
-    db.query(query, [OrderID, DeliveryType, DeliveryDate, DeliveryStatus], (err, result) => {
-
-        if (err) return res.status(500).send(err);
-
+app.post('/api/logistics', async (req, res) => {
+    try {
+        const { OrderID, DeliveryType, DeliveryDate, DeliveryStatus } = req.body;
+        const DeliveryID = await getNextId('DeliveryID');
+        await collections.delivery.insertOne({ DeliveryID, OrderID, DeliveryType, DeliveryDate: new Date(DeliveryDate), DeliveryStatus });
         res.send('Logistics record created!');
-
-    });
-
+    } catch (err) {
+        res.status(500).send({ error: err.message });
+    }
 });
 
-// PUT: Update logistics status
-app.put('/api/logistics/:id', (req, res) => {
-    const { DeliveryStatus } = req.body;
-    const query = 'UPDATE delivery_pickup SET DeliveryStatus = $1 WHERE DeliveryID = $2';
-    db.query(query, [DeliveryStatus, req.params.id], (err) => {
-        if (err) return res.status(500).send(err);
+app.put('/api/logistics/:id', async (req, res) => {
+    try {
+        const { DeliveryStatus } = req.body;
+        await collections.delivery.updateOne({ DeliveryID: parseInt(req.params.id) }, { $set: { DeliveryStatus } });
         res.send('Logistics status updated!');
-    });
+    } catch (err) {
+        res.status(500).send({ error: err.message });
+    }
 });
 
-// ==========================================
-// DASHBOARD STATS ROUTE
-// ==========================================
-
-app.get('/api/dashboard/stats', (req, res) => {
-    const query = `
-        SELECT
-            COALESCE((SELECT SUM(TotalAmount) FROM "order"), 0) AS revenue,
-            COALESCE((SELECT COUNT(*) FROM customer), 0) AS customers,
-            COALESCE((SELECT COUNT(*) FROM inventory WHERE StockQuantity < 10), 0) AS lowStock
-    `;
-
-    db.query(query, (err, results) => {
-        if (err) return res.status(500).send(err);
-        res.json(normalizeRow(results.rows[0]) || { revenue: 0, customers: 0, lowStock: 0 });
-    });
+// DASHBOARD STATS
+app.get('/api/dashboard/stats', async (req, res) => {
+    try {
+        const revenue = await collections.orders.aggregate([{ $group: { _id: null, total: { $sum: '$TotalAmount' } } }]).toArray();
+        const customers = await collections.customers.countDocuments();
+        const lowStock = await collections.inventory.countDocuments({ StockQuantity: { $lt: 10 } });
+        res.json({ Revenue: revenue[0]?.total || 0, Customers: customers, LowStock: lowStock });
+    } catch (err) {
+        res.status(500).send({ error: err.message });
+    }
 });
 
-// ==========================================
-// REPORTS ROUTES
-// ==========================================
-
-// GET: Order summary for reports page
-app.get('/api/reports/summary', (req, res) => {
-    const query = `
-        SELECT
-            o.OrderID,
-            (c.FirstName || ' ' || c.LastName) AS CustomerName,
-            o.OrderDate,
-            o.TotalAmount,
-            o.OrderStatus
-        FROM "order" o
-        JOIN customer c ON o.CustomerID = c.CustomerID
-        ORDER BY o.OrderDate DESC
-        LIMIT 50
-    `;
-
-    db.query(query, (err, results) => {
-        if (err) return res.status(500).send(err);
-        res.json(results.rows.map(normalizeRow));
-    });
+// REPORTS
+app.get('/api/reports/summary', async (req, res) => {
+    try {
+        const results = await collections.orders.aggregate([
+            { $lookup: { from: 'customer', localField: 'CustomerID', foreignField: 'CustomerID', as: 'customer' } },
+            { $unwind: '$customer' },
+            { $project: { OrderID: 1, CustomerName: { $concat: ['$customer.FirstName', ' ', '$customer.LastName'] }, OrderDate: 1, TotalAmount: 1, OrderStatus: 1 } },
+            { $sort: { OrderDate: -1 } },
+            { $limit: 50 }
+        ]).toArray();
+        res.json(results);
+    } catch (err) {
+        res.status(500).send({ error: err.message });
+    }
 });
 
-// GET: Inventory status report
-app.get('/api/reports/inventory-status', (req, res) => {
-    const query = `
-        SELECT
-            p.ProductID,
-            p.ProductName,
-            p.Category,
-            i.StockQuantity,
-            p.UnitPrice
-        FROM inventory i
-        JOIN product p ON i.ProductID = p.ProductID
-        ORDER BY i.StockQuantity ASC, p.ProductName ASC
-    `;
-
-    db.query(query, (err, results) => {
-        if (err) return res.status(500).send(err);
-        res.json(results.rows.map(normalizeRow));
-    });
+app.get('/api/reports/inventory-status', async (req, res) => {
+    try {
+        const results = await collections.inventory.aggregate([
+            { $lookup: { from: 'product', localField: 'ProductID', foreignField: 'ProductID', as: 'product' } },
+            { $unwind: '$product' },
+            { $project: { ProductID: '$product.ProductID', ProductName: '$product.ProductName', Category: '$product.Category', StockQuantity: 1, UnitPrice: '$product.UnitPrice' } },
+            { $sort: { StockQuantity: 1, ProductName: 1 } }
+        ]).toArray();
+        res.json(results);
+    } catch (err) {
+        res.status(500).send({ error: err.message });
+    }
 });
 
-// ==========================================
-// SERVER START
-// ==========================================
+// SERVER
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// For local development and platforms like Render
-if (!process.env.VERCEL) {
-    app.listen(process.env.PORT || 3000, () => console.log('Server running on port ' + (process.env.PORT || 3000)));
-}
-
-// Lightweight database health check (helps confirm Supabase connection)
-app.get('/api/ping', (req, res) => {
-    if (!db) return res.status(500).json({ ok: false, error: 'DB pool not initialized yet' });
-    db.query('SELECT 1', (err) => {
-        if (err) return res.status(500).json({ ok: false, error: err.message });
-        res.json({ ok: true, message: 'Database connection OK', resolvedHost });
-    });
+app.get('/api/ping', async (req, res) => {
+    try {
+        if (!db) return res.status(500).json({ ok: false, error: 'Database not initialized' });
+        await db.admin().ping();
+        res.json({ ok: true, message: 'Database connection OK' });
+    } catch (err) {
+        res.status(500).json({ ok: false, error: err.message });
+    }
 });
 
-// DNS debug endpoint
-app.get('/api/debug/dns', async (req, res) => {
-    const host = req.query.host || (() => {
-        try {
-            return new URL(connectionString).hostname;
-        } catch {
-            return null;
-        }
-    })();
-
-    if (!host) {
-        return res.status(400).json({ ok: false, error: 'Missing host to resolve' });
-    }
-
-    const result = { host };
-    const lookup = {}; // use for multiple lookups
-
-    try {
-        lookup.lookup = await dns.promises.lookup(host);
-    } catch (err) {
-        lookup.lookup = { error: err.message };
-    }
-    try {
-        lookup.resolve4 = await dns.promises.resolve4(host);
-    } catch (err) {
-        lookup.resolve4 = { error: err.message };
-    }
-    try {
-        lookup.resolve6 = await dns.promises.resolve6(host);
-    } catch (err) {
-        lookup.resolve6 = { error: err.message };
-    }
-
-    res.json({ ok: true, dns: lookup });
-});
-
-// Fallback to serve HTML pages by name (e.g., /customers -> /public/customers.html)
 app.get('/:page', (req, res, next) => {
-    const page = req.params.page;
-    const filePath = path.join(__dirname, 'public', `${page}.html`);
-
+    const filePath = path.join(__dirname, 'public', `${req.params.page}.html`);
     res.sendFile(filePath, err => {
         if (err) return next();
     });
 });
 
-// For Vercel deployment (export Express app)
+initializeDB().then(() => {
+    if (!process.env.VERCEL) {
+        app.listen(process.env.PORT || 3000, () => console.log('Server on port ' + (process.env.PORT || 3000)));
+    }
+}).catch(err => {
+    console.error('Failed to initialize:', err);
+    process.exit(1);
+});
+
 module.exports = app;
