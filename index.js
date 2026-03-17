@@ -56,14 +56,14 @@ async function getNextId(tableName) {
 // ORDER DETAILS ROUTES
 app.get('/api/orderdetails', async (req, res) => {
     try {
-        const [rows] = await db.execute(`
-            SELECT od.OrderDetailID, od.OrderID, DATE_FORMAT(o.OrderDate, '%b %d, %Y') as Date,
-                   p.ProductName, od.Quantity, od.UnitPrice, od.Subtotal
-            FROM orderdetails od
-            JOIN `order` o ON od.OrderID = o.OrderID
-            JOIN product p ON od.ProductID = p.ProductID
-            ORDER BY od.OrderDetailID DESC
-        `);
+        const [rows] = await db.execute(
+            'SELECT od.OrderDetailID, od.OrderID, DATE_FORMAT(o.OrderDate, \'%b %d, %Y\') as Date, ' +
+            'p.ProductName, od.Quantity, od.UnitPrice, od.Subtotal ' +
+            'FROM orderdetails od ' +
+            'JOIN `order` o ON od.OrderID = o.OrderID ' +
+            'JOIN product p ON od.ProductID = p.ProductID ' +
+            'ORDER BY od.OrderDetailID DESC'
+        );
         res.json(rows);
     } catch (err) {
         res.status(500).send({ error: err.message });
@@ -206,16 +206,16 @@ app.delete('/api/customers/:id', async (req, res) => {
 // ORDER ROUTES
 app.get('/api/orders', async (req, res) => {
     try {
-        const [rows] = await db.execute(`
-            SELECT o.OrderID, CONCAT(c.FirstName, ' ', c.LastName) as CustomerName,
-                   CONCAT(e.FirstName, ' ', e.LastName) as EmployeeName,
-                   DATE_FORMAT(o.OrderDate, '%b %d, %Y') as Date,
-                   o.OrderStatus, o.TotalAmount
-            FROM `order` o
-            JOIN customer c ON o.CustomerID = c.CustomerID
-            JOIN employee e ON o.EmployeeID = e.EmployeeID
-            ORDER BY o.OrderID DESC
-        `);
+        const [rows] = await db.execute(
+            'SELECT o.OrderID, CONCAT(c.FirstName, \' \', c.LastName) as CustomerName, ' +
+            'CONCAT(e.FirstName, \' \', e.LastName) as EmployeeName, ' +
+            'DATE_FORMAT(o.OrderDate, \'%b %d, %Y\') as Date, ' +
+            'o.OrderStatus, o.TotalAmount ' +
+            'FROM `order` o ' +
+            'JOIN customer c ON o.CustomerID = c.CustomerID ' +
+            'JOIN employee e ON o.EmployeeID = e.EmployeeID ' +
+            'ORDER BY o.OrderID DESC'
+        );
         res.json(rows);
     } catch (err) {
         res.status(500).send({ error: err.message });
@@ -264,7 +264,7 @@ app.put('/api/employees/:id', async (req, res) => {
     try {
         const { FirstName, LastName, Role, ContactNumber, ReportsTo } = req.body;
         await db.execute(
-            'UPDATE employees SET FirstName = ?, LastName = ?, Role = ?, ContactNumber = ?, ReportsTo = ? WHERE EmployeeID = ?',
+            'UPDATE employee SET FirstName = ?, LastName = ?, Role = ?, ContactNumber = ?, ReportsTo = ? WHERE EmployeeID = ?',
             [FirstName, LastName, Role, ContactNumber, ReportsTo || null, req.params.id]
         );
         res.send('Employee updated!');
@@ -341,15 +341,15 @@ app.post('/api/inventory', async (req, res) => {
 // PAYMENT ROUTES
 app.get('/api/payments', async (req, res) => {
     try {
-        const [rows] = await db.execute(`
-            SELECT p.PaymentID, p.OrderID, CONCAT(c.FirstName, ' ', c.LastName) as CustomerName,
-                   DATE_FORMAT(p.PaymentDate, '%b %d, %Y %H:%i') as Date,
-                   p.PaymentMethod, p.AmountPaid, p.PaymentStatus
-            FROM payment p
-            JOIN `order` o ON p.OrderID = o.OrderID
-            JOIN customer c ON o.CustomerID = c.CustomerID
-            ORDER BY p.PaymentID DESC
-        `);
+        const [rows] = await db.execute(
+            'SELECT p.PaymentID, p.OrderID, CONCAT(c.FirstName, \' \', c.LastName) as CustomerName, ' +
+            'DATE_FORMAT(p.PaymentDate, \'%b %d, %Y %H:%i\') as Date, ' +
+            'p.PaymentMethod, p.AmountPaid, p.PaymentStatus ' +
+            'FROM payment p ' +
+            'JOIN `order` o ON p.OrderID = o.OrderID ' +
+            'JOIN customer c ON o.CustomerID = c.CustomerID ' +
+            'ORDER BY p.PaymentID DESC'
+        );
         res.json(rows);
     } catch (err) {
         res.status(500).send({ error: err.message });
@@ -359,9 +359,9 @@ app.get('/api/payments', async (req, res) => {
 app.post('/api/payments', async (req, res) => {
     try {
         const { OrderID, PaymentMethod, AmountPaid, PaymentStatus } = req.body;
-        const PaymentID = await getNextId('payments');
+        const PaymentID = await getNextId('payment');
         await db.execute(
-            'INSERT INTO payments (PaymentID, OrderID, PaymentDate, PaymentMethod, AmountPaid, PaymentStatus) VALUES (?, ?, NOW(), ?, ?, ?)',
+            'INSERT INTO payment (PaymentID, OrderID, PaymentDate, PaymentMethod, AmountPaid, PaymentStatus) VALUES (?, ?, NOW(), ?, ?, ?)',
             [PaymentID, OrderID, PaymentMethod, AmountPaid, PaymentStatus]
         );
         res.send('Payment recorded!');
@@ -373,14 +373,14 @@ app.post('/api/payments', async (req, res) => {
 // LOGISTICS ROUTES
 app.get('/api/logistics', async (req, res) => {
     try {
-        const [rows] = await db.execute(`
-            SELECT d.DeliveryID, d.OrderID, CONCAT(c.FirstName, ' ', c.LastName) as CustomerName,
-                   d.DeliveryType, DATE_FORMAT(d.DeliveryDate, '%b %d, %Y') as Date, d.DeliveryStatus
-            FROM delivery_pickup d
-            JOIN `order` o ON d.OrderID = o.OrderID
-            JOIN customer c ON o.CustomerID = c.CustomerID
-            ORDER BY d.DeliveryID DESC
-        `);
+        const [rows] = await db.execute(
+            'SELECT d.DeliveryID, d.OrderID, CONCAT(c.FirstName, \' \', c.LastName) as CustomerName, ' +
+            'd.DeliveryType, DATE_FORMAT(d.DeliveryDate, \'%b %d, %Y\') as Date, d.DeliveryStatus ' +
+            'FROM delivery_pickup d ' +
+            'JOIN `order` o ON d.OrderID = o.OrderID ' +
+            'JOIN customer c ON o.CustomerID = c.CustomerID ' +
+            'ORDER BY d.DeliveryID DESC'
+        );
         res.json(rows);
     } catch (err) {
         res.status(500).send({ error: err.message });
@@ -434,14 +434,14 @@ app.get('/api/dashboard/stats', async (req, res) => {
 // REPORTS
 app.get('/api/reports/summary', async (req, res) => {
     try {
-        const [rows] = await db.execute(`
-            SELECT o.OrderID, CONCAT(c.FirstName, ' ', c.LastName) as CustomerName,
-                   o.OrderDate, o.TotalAmount, o.OrderStatus
-            FROM `order` o
-            JOIN customer c ON o.CustomerID = c.CustomerID
-            ORDER BY o.OrderDate DESC
-            LIMIT 50
-        `);
+        const [rows] = await db.execute(
+            'SELECT o.OrderID, CONCAT(c.FirstName, \' \', c.LastName) as CustomerName, ' +
+            'o.OrderDate, o.TotalAmount, o.OrderStatus ' +
+            'FROM `order` o ' +
+            'JOIN customer c ON o.CustomerID = c.CustomerID ' +
+            'ORDER BY o.OrderDate DESC ' +
+            'LIMIT 50'
+        );
         res.json(rows);
     } catch (err) {
         res.status(500).send({ error: err.message });
