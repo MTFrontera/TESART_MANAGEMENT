@@ -22,10 +22,13 @@ const rawDbUrl = process.env.DATABASE_URL || 'postgresql://postgres:password@loc
 const connectionString = rawDbUrl.replace(/\[|\]/g, ''); // strip accidental bracket wrappers
 
 // Log the effective DB host/port/dbname (not the password) for debugging.
+// This confirms which DATABASE_URL is actually being used at runtime.
 try {
     const u = new URL(connectionString);
     const safeUrl = `${u.protocol}//${u.username}@${u.hostname}:${u.port}${u.pathname}`;
     console.log('Using DB:', safeUrl, 'ssl=', u.hostname.includes('.supabase.co'));
+    console.log('Raw process.env.DATABASE_URL (redacted):',
+        process.env.DATABASE_URL ? process.env.DATABASE_URL.replace(/:[^@]+@/, ':*****@') : '(none)');
 } catch (err) {
     console.warn('Failed to parse DB URL for logging:', err.message);
 }
