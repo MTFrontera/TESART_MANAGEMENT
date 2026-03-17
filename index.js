@@ -60,8 +60,8 @@ app.get('/api/orderdetails', async (req, res) => {
             SELECT od.OrderDetailID, od.OrderID, DATE_FORMAT(o.OrderDate, '%b %d, %Y') as Date,
                    p.ProductName, od.Quantity, od.UnitPrice, od.Subtotal
             FROM orderdetails od
-            JOIN orders o ON od.OrderID = o.OrderID
-            JOIN products p ON od.ProductID = p.ProductID
+            JOIN `order` o ON od.OrderID = o.OrderID
+            JOIN product p ON od.ProductID = p.ProductID
             ORDER BY od.OrderDetailID DESC
         `);
         res.json(rows);
@@ -72,8 +72,8 @@ app.get('/api/orderdetails', async (req, res) => {
 
 app.get('/api/dropdowns', async (req, res) => {
     try {
-        const [orders] = await db.execute('SELECT OrderID FROM orders');
-        const [products] = await db.execute('SELECT ProductID, ProductName, UnitPrice FROM products');
+        const [orders] = await db.execute('SELECT OrderID FROM `order`');
+        const [products] = await db.execute('SELECT ProductID, ProductName, UnitPrice FROM product');
         res.json({ orders, products });
     } catch (err) {
         res.status(500).send({ error: err.message });
@@ -106,7 +106,7 @@ app.delete('/api/orderdetails/:id', async (req, res) => {
 // PRODUCT ROUTES
 app.get('/api/products', async (req, res) => {
     try {
-        const [rows] = await db.execute('SELECT * FROM products ORDER BY ProductID DESC');
+        const [rows] = await db.execute('SELECT * FROM product ORDER BY ProductID DESC');
         res.json(rows);
     } catch (err) {
         res.status(500).send({ error: err.message });
@@ -118,7 +118,7 @@ app.post('/api/products', async (req, res) => {
         const { ProductName, Description, UnitPrice, Category } = req.body;
         const ProductID = await getNextId('products');
         await db.execute(
-            'INSERT INTO products (ProductID, ProductName, Description, UnitPrice, Category) VALUES (?, ?, ?, ?, ?)',
+            'INSERT INTO product (ProductID, ProductName, Description, UnitPrice, Category) VALUES (?, ?, ?, ?, ?)',
             [ProductID, ProductName, Description, UnitPrice, Category]
         );
         res.send('Product added!');
@@ -131,7 +131,7 @@ app.put('/api/products/:id', async (req, res) => {
     try {
         const { ProductName, Description, UnitPrice, Category } = req.body;
         await db.execute(
-            'UPDATE products SET ProductName = ?, Description = ?, UnitPrice = ?, Category = ? WHERE ProductID = ?',
+            'UPDATE product SET ProductName = ?, Description = ?, UnitPrice = ?, Category = ? WHERE ProductID = ?',
             [ProductName, Description, UnitPrice, Category, req.params.id]
         );
         res.send('Product updated!');
@@ -146,7 +146,7 @@ app.delete('/api/products/:id', async (req, res) => {
         if (rows.length > 0) {
             return res.status(500).send({ error: "Cannot delete product because it is linked to existing orders." });
         }
-        await db.execute('DELETE FROM products WHERE ProductID = ?', [req.params.id]);
+        await db.execute('DELETE FROM product WHERE ProductID = ?', [req.params.id]);
         res.send('Product deleted!');
     } catch (err) {
         res.status(500).send({ error: err.message });
@@ -156,7 +156,7 @@ app.delete('/api/products/:id', async (req, res) => {
 // CUSTOMER ROUTES
 app.get('/api/customers', async (req, res) => {
     try {
-        const [rows] = await db.execute('SELECT *, CONCAT(FirstName, " ", LastName) as CustomerName FROM customers ORDER BY CustomerID DESC');
+        const [rows] = await db.execute('SELECT *, CONCAT(FirstName, " ", LastName) as CustomerName FROM customer ORDER BY CustomerID DESC');
         res.json(rows);
     } catch (err) {
         res.status(500).send({ error: err.message });
@@ -168,7 +168,7 @@ app.post('/api/customers', async (req, res) => {
         const { FirstName, LastName, Email, PhoneNumber, Address } = req.body;
         const CustomerID = await getNextId('customers');
         await db.execute(
-            'INSERT INTO customers (CustomerID, FirstName, LastName, Email, PhoneNumber, Address) VALUES (?, ?, ?, ?, ?, ?)',
+            'INSERT INTO customer (CustomerID, FirstName, LastName, Email, PhoneNumber, Address) VALUES (?, ?, ?, ?, ?, ?)',
             [CustomerID, FirstName, LastName, Email, PhoneNumber, Address]
         );
         res.send('Customer registered!');
@@ -181,7 +181,7 @@ app.put('/api/customers/:id', async (req, res) => {
     try {
         const { FirstName, LastName, Email, PhoneNumber, Address } = req.body;
         await db.execute(
-            'UPDATE customers SET FirstName = ?, LastName = ?, Email = ?, PhoneNumber = ?, Address = ? WHERE CustomerID = ?',
+            'UPDATE customer SET FirstName = ?, LastName = ?, Email = ?, PhoneNumber = ?, Address = ? WHERE CustomerID = ?',
             [FirstName, LastName, Email, PhoneNumber, Address, req.params.id]
         );
         res.send('Customer details updated!');
@@ -192,11 +192,11 @@ app.put('/api/customers/:id', async (req, res) => {
 
 app.delete('/api/customers/:id', async (req, res) => {
     try {
-        const [rows] = await db.execute('SELECT 1 FROM orders WHERE CustomerID = ? LIMIT 1', [req.params.id]);
+        const [rows] = await db.execute('SELECT 1 FROM `order` WHERE CustomerID = ? LIMIT 1', [req.params.id]);
         if (rows.length > 0) {
             return res.status(500).send({ error: "Cannot delete customer with active order history." });
         }
-        await db.execute('DELETE FROM customers WHERE CustomerID = ?', [req.params.id]);
+        await db.execute('DELETE FROM customer WHERE CustomerID = ?', [req.params.id]);
         res.send('Customer removed!');
     } catch (err) {
         res.status(500).send({ error: err.message });
@@ -211,9 +211,9 @@ app.get('/api/orders', async (req, res) => {
                    CONCAT(e.FirstName, ' ', e.LastName) as EmployeeName,
                    DATE_FORMAT(o.OrderDate, '%b %d, %Y') as Date,
                    o.OrderStatus, o.TotalAmount
-            FROM orders o
-            JOIN customers c ON o.CustomerID = c.CustomerID
-            JOIN employees e ON o.EmployeeID = e.EmployeeID
+            FROM `order` o
+            JOIN customer c ON o.CustomerID = c.CustomerID
+            JOIN employee e ON o.EmployeeID = e.EmployeeID
             ORDER BY o.OrderID DESC
         `);
         res.json(rows);
@@ -227,7 +227,7 @@ app.post('/api/orders', async (req, res) => {
         const { CustomerID, EmployeeID, OrderDate, OrderStatus, DeliveryMethod, TotalAmount } = req.body;
         const OrderID = await getNextId('orders');
         await db.execute(
-            'INSERT INTO orders (OrderID, CustomerID, EmployeeID, OrderDate, OrderStatus, DeliveryMethod, TotalAmount) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO `order` (OrderID, CustomerID, EmployeeID, OrderDate, OrderStatus, DeliveryMethod, TotalAmount) VALUES (?, ?, ?, ?, ?, ?, ?)',
             [OrderID, CustomerID, EmployeeID, OrderDate, OrderStatus, DeliveryMethod, TotalAmount]
         );
         res.send('Order created!');
@@ -239,7 +239,7 @@ app.post('/api/orders', async (req, res) => {
 // EMPLOYEE ROUTES
 app.get('/api/employees', async (req, res) => {
     try {
-        const [rows] = await db.execute('SELECT * FROM employees ORDER BY EmployeeID ASC');
+        const [rows] = await db.execute('SELECT * FROM employee ORDER BY EmployeeID ASC');
         res.json(rows);
     } catch (err) {
         res.status(500).send({ error: err.message });
@@ -251,7 +251,7 @@ app.post('/api/employees', async (req, res) => {
         const { FirstName, LastName, Role, ContactNumber, ReportsTo } = req.body;
         const EmployeeID = await getNextId('employees');
         await db.execute(
-            'INSERT INTO employees (EmployeeID, FirstName, LastName, Role, ContactNumber, ReportsTo) VALUES (?, ?, ?, ?, ?, ?)',
+            'INSERT INTO employee (EmployeeID, FirstName, LastName, Role, ContactNumber, ReportsTo) VALUES (?, ?, ?, ?, ?, ?)',
             [EmployeeID, FirstName, LastName, Role, ContactNumber, ReportsTo || null]
         );
         res.send('Employee added!');
@@ -275,11 +275,11 @@ app.put('/api/employees/:id', async (req, res) => {
 
 app.delete('/api/employees/:id', async (req, res) => {
     try {
-        const [rows] = await db.execute('SELECT 1 FROM orders WHERE EmployeeID = ? LIMIT 1', [req.params.id]);
+        const [rows] = await db.execute('SELECT 1 FROM `order` WHERE EmployeeID = ? LIMIT 1', [req.params.id]);
         if (rows.length > 0) {
             return res.status(500).send({ error: "Cannot delete employee assigned to active orders." });
         }
-        await db.execute('DELETE FROM employees WHERE EmployeeID = ?', [req.params.id]);
+        await db.execute('DELETE FROM employee WHERE EmployeeID = ?', [req.params.id]);
         res.send('Employee removed!');
     } catch (err) {
         res.status(500).send({ error: err.message });
@@ -293,7 +293,7 @@ app.get('/api/inventory', async (req, res) => {
             SELECT i.InventoryID, p.ProductName, i.StockQuantity,
                    DATE_FORMAT(i.LastUpdated, '%b %d, %Y %H:%i') as LastUpdated
             FROM inventory i
-            JOIN products p ON i.ProductID = p.ProductID
+            JOIN product p ON i.ProductID = p.ProductID
             ORDER BY i.InventoryID DESC
         `);
         res.json(rows);
@@ -345,9 +345,9 @@ app.get('/api/payments', async (req, res) => {
             SELECT p.PaymentID, p.OrderID, CONCAT(c.FirstName, ' ', c.LastName) as CustomerName,
                    DATE_FORMAT(p.PaymentDate, '%b %d, %Y %H:%i') as Date,
                    p.PaymentMethod, p.AmountPaid, p.PaymentStatus
-            FROM payments p
-            JOIN orders o ON p.OrderID = o.OrderID
-            JOIN customers c ON o.CustomerID = c.CustomerID
+            FROM payment p
+            JOIN `order` o ON p.OrderID = o.OrderID
+            JOIN customer c ON o.CustomerID = c.CustomerID
             ORDER BY p.PaymentID DESC
         `);
         res.json(rows);
@@ -377,8 +377,8 @@ app.get('/api/logistics', async (req, res) => {
             SELECT d.DeliveryID, d.OrderID, CONCAT(c.FirstName, ' ', c.LastName) as CustomerName,
                    d.DeliveryType, DATE_FORMAT(d.DeliveryDate, '%b %d, %Y') as Date, d.DeliveryStatus
             FROM delivery_pickup d
-            JOIN orders o ON d.OrderID = o.OrderID
-            JOIN customers c ON o.CustomerID = c.CustomerID
+            JOIN `order` o ON d.OrderID = o.OrderID
+            JOIN customer c ON o.CustomerID = c.CustomerID
             ORDER BY d.DeliveryID DESC
         `);
         res.json(rows);
@@ -417,8 +417,8 @@ app.put('/api/logistics/:id', async (req, res) => {
 // DASHBOARD STATS
 app.get('/api/dashboard/stats', async (req, res) => {
     try {
-        const [revenueRows] = await db.execute('SELECT SUM(TotalAmount) as total FROM orders');
-        const [customerRows] = await db.execute('SELECT COUNT(*) as count FROM customers');
+        const [revenueRows] = await db.execute('SELECT SUM(TotalAmount) as total FROM `order`');
+        const [customerRows] = await db.execute('SELECT COUNT(*) as count FROM customer');
         const [lowStockRows] = await db.execute('SELECT COUNT(*) as count FROM inventory WHERE StockQuantity < 10');
 
         res.json({
@@ -437,8 +437,8 @@ app.get('/api/reports/summary', async (req, res) => {
         const [rows] = await db.execute(`
             SELECT o.OrderID, CONCAT(c.FirstName, ' ', c.LastName) as CustomerName,
                    o.OrderDate, o.TotalAmount, o.OrderStatus
-            FROM orders o
-            JOIN customers c ON o.CustomerID = c.CustomerID
+            FROM `order` o
+            JOIN customer c ON o.CustomerID = c.CustomerID
             ORDER BY o.OrderDate DESC
             LIMIT 50
         `);
@@ -453,7 +453,7 @@ app.get('/api/reports/inventory-status', async (req, res) => {
         const [rows] = await db.execute(`
             SELECT p.ProductID, p.ProductName, p.Category, i.StockQuantity, p.UnitPrice
             FROM inventory i
-            JOIN products p ON i.ProductID = p.ProductID
+            JOIN product p ON i.ProductID = p.ProductID
             ORDER BY i.StockQuantity ASC, p.ProductName ASC
         `);
         res.json(rows);
