@@ -6,6 +6,14 @@ const bodyParser = require('body-parser');
 
 require('dotenv').config();
 
+console.log('Environment check:');
+console.log('DB_HOST:', process.env.DB_HOST ? 'SET' : 'NOT SET');
+console.log('DB_PORT:', process.env.DB_PORT ? 'SET' : 'NOT SET');
+console.log('DB_USERNAME:', process.env.DB_USERNAME ? 'SET' : 'NOT SET');
+console.log('DB_PASSWORD:', process.env.DB_PASSWORD ? 'SET' : 'NOT SET');
+console.log('DB_DATABASE:', process.env.DB_DATABASE ? 'SET' : 'NOT SET');
+console.log('Node version:', process.version);
+
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
