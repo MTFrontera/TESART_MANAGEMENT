@@ -12,7 +12,9 @@ console.log('DB_PORT:', process.env.DB_PORT ? 'SET' : 'NOT SET');
 console.log('DB_USERNAME:', process.env.DB_USERNAME ? 'SET' : 'NOT SET');
 console.log('DB_PASSWORD:', process.env.DB_PASSWORD ? 'SET' : 'NOT SET');
 console.log('DB_DATABASE:', process.env.DB_DATABASE ? 'SET' : 'NOT SET');
+console.log('PORT (for server):', process.env.PORT || '3000 (default)');
 console.log('Node version:', process.version);
+console.log('Platform:', process.platform);
 
 const app = express();
 app.use(cors());
@@ -483,12 +485,18 @@ app.get('/:page', (req, res, next) => {
 });
 
 initializeDB().then(() => {
-    if (!process.env.VERCEL) {
-        app.listen(process.env.PORT || 3000, () => console.log('Server on port ' + (process.env.PORT || 3000)));
-    }
+    const PORT = process.env.PORT || 3000;
+    app.listen(PORT, () => {
+        console.log(`Server running on port ${PORT}`);
+        console.log('TiDB database connected and ready');
+    });
 }).catch(err => {
-    console.error('Failed to initialize:', err);
-    process.exit(1);
+    console.error('Failed to initialize database:', err);
+    // Still start the server even if DB fails, for debugging
+    const PORT = process.env.PORT || 3000;
+    app.listen(PORT, () => {
+        console.log(`Server running on port ${PORT} (DB connection failed)`);
+    });
 });
 
 module.exports = app;
