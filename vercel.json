@@ -8,24 +8,13 @@
   "builds": [
     {
       "src": "server.js",
-      "use": "@vercel/node",
-      "config": {
-        "includeFiles": "public/**"
-      }
+      "use": "@vercel/node"
     }
   ],
   "routes": [
     {
       "src": "/api/(.*)",
       "dest": "server.js"
-    },
-    {
-      "src": "/public/(.*)",
-      "dest": "public/$1"
-    },
-    {
-      "src": "/(.*\\..*)",
-      "dest": "public/$1"
     },
     {
       "src": "/.*",
