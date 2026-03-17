@@ -24,6 +24,7 @@ const connectionString = rawDbUrl.replace(/\[|\]/g, ''); // strip accidental bra
 
 // Log the effective DB host/port/dbname (not the password) for debugging.
 // This confirms which DATABASE_URL is actually being used at runtime.
+let resolvedHost = null;
 try {
     const u = new URL(connectionString);
     const safeUrl = `${u.protocol}//${u.username}@${u.hostname}:${u.port}${u.pathname}`;
@@ -34,13 +35,69 @@ try {
     console.warn('Failed to parse DB URL for logging:', err.message);
 }
 
-// Use explicit SSL settings for hosted Postgres (Supabase, Vercel, Render, etc.).
-// This matches the recommended pattern for Supabase in hosted environments.
-const db = new Pool({
-  connectionString,
-  ssl: {
-    rejectUnauthorized: false // This is critical for Supabase on Render/Vercel
-  }
+// If DNS resolution fails inside the deployment environment, try resolving via public DNS.
+async function resolveDatabaseHost(host) {
+    if (!host) return null;
+
+    try {
+        const res = await dns.promises.lookup(host);
+        resolvedHost = res.address;
+        console.log('DNS lookup succeeded (system):', host, '=>', resolvedHost);
+        return resolvedHost;
+    } catch (err) {
+        console.warn('System DNS lookup failed:', err.code || err.message);
+    }
+
+    try {
+        const resolver = new dns.Resolver();
+        resolver.setServers(['8.8.8.8', '1.1.1.1']);
+        const addresses = await resolver.resolve4(host);
+        if (addresses && addresses.length) {
+            resolvedHost = addresses[0];
+            console.log('DNS lookup succeeded (public):', host, '=>', resolvedHost);
+            return resolvedHost;
+        }
+    } catch (err) {
+        console.warn('Public DNS lookup failed:', err.code || err.message);
+    }
+
+    return null;
+}
+
+async function createPool() {
+    const u = new URL(connectionString);
+    const host = u.hostname;
+    const port = u.port || 5432;
+    const user = u.username;
+    const password = u.password;
+    const database = u.pathname.replace(/^\//, '');
+
+    const ip = await resolveDatabaseHost(host);
+
+    const poolConfig = {
+        host: ip || host,
+        port,
+        user,
+        password,
+        database,
+        ssl: {
+            rejectUnauthorized: false
+        }
+    };
+
+    if (!ip) {
+        console.warn('Proceeding with original host (DNS may not resolve from this environment).');
+    }
+
+    return new Pool(poolConfig);
+}
+
+// Create the pool asynchronously but keep a synchronous reference for the routes.
+let db;
+createPool().then(p => {
+    db = p;
+}).catch(err => {
+    console.error('Failed to create DB pool:', err);
 });
 
 // Helper function to normalize PostgreSQL lowercase column names to proper case
@@ -851,9 +908,10 @@ if (!process.env.VERCEL) {
 
 // Lightweight database health check (helps confirm Supabase connection)
 app.get('/api/ping', (req, res) => {
+    if (!db) return res.status(500).json({ ok: false, error: 'DB pool not initialized yet' });
     db.query('SELECT 1', (err) => {
         if (err) return res.status(500).json({ ok: false, error: err.message });
-        res.json({ ok: true, message: 'Database connection OK' });
+        res.json({ ok: true, message: 'Database connection OK', resolvedHost });
     });
 });
 
