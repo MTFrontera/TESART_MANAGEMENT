@@ -1,8 +1,18 @@
--- PostgreSQL schema for TesArt Management System (converted from MariaDB dump)
+-- MySQL/TiDB schema for TesArt Management System
+
+-- SKIP THESE LINES IF DATABASE ALREADY EXISTS:
+-- CREATE DATABASE IF NOT EXISTS TesART_db;
+-- USE TesART_db;
+
+-- Counters table for ID generation
+CREATE TABLE counters (
+  table_name VARCHAR(50) PRIMARY KEY,
+  last_id INT DEFAULT 0
+);
 
 -- ----- Customers -----
 CREATE TABLE customer (
-  CustomerID SERIAL PRIMARY KEY,
+  CustomerID INT AUTO_INCREMENT PRIMARY KEY,
   FirstName VARCHAR(50) NOT NULL,
   LastName VARCHAR(50) NOT NULL,
   Email VARCHAR(100),
@@ -17,16 +27,17 @@ INSERT INTO customer (CustomerID, FirstName, LastName, Email, PhoneNumber, Addre
   (4,'Maria','Lopez','maria.lopez@email.com','09144445555','Valencia'),
   (5,'Jake','Tan','jake.tan@email.com','09155556666','Davao');
 
-SELECT setval(pg_get_serial_sequence('customer','customerid'), COALESCE((SELECT MAX(customerid) FROM customer), 1));
+INSERT INTO counters (table_name, last_id) VALUES ('customers', 5);
 
 -- ----- Employees -----
 CREATE TABLE employee (
-  EmployeeID SERIAL PRIMARY KEY,
+  EmployeeID INT AUTO_INCREMENT PRIMARY KEY,
   FirstName VARCHAR(50) NOT NULL,
   LastName VARCHAR(50) NOT NULL,
   Role VARCHAR(50),
   ContactNumber VARCHAR(20),
-  ReportsTo INTEGER REFERENCES employee(EmployeeID)
+  ReportsTo INT,
+  FOREIGN KEY (ReportsTo) REFERENCES employee(EmployeeID)
 );
 
 INSERT INTO employee (EmployeeID, FirstName, LastName, Role, ContactNumber, ReportsTo) VALUES
@@ -38,11 +49,11 @@ INSERT INTO employee (EmployeeID, FirstName, LastName, Role, ContactNumber, Repo
   (6,'Kevin','Lee','Assistant',NULL,NULL),
   (7,'Maria','Reyes','Senior Designer',NULL,NULL);
 
-SELECT setval(pg_get_serial_sequence('employee','employeeid'), COALESCE((SELECT MAX(employeeid) FROM employee), 1));
+INSERT INTO counters (table_name, last_id) VALUES ('employees', 7);
 
 -- ----- Products -----
 CREATE TABLE product (
-  ProductID SERIAL PRIMARY KEY,
+  ProductID INT AUTO_INCREMENT PRIMARY KEY,
   ProductName VARCHAR(100),
   Category VARCHAR(100),
   UnitPrice DECIMAL(10,2),
@@ -69,36 +80,40 @@ INSERT INTO product (ProductID, ProductName, Category, UnitPrice, Description, R
   (15,'Ballpen Blue','Office Supplies',12.00,'Blue pen','No return','No warranty'),
   (16,'Notebook 80 Pages','Office Supplies',35.00,'Student notebook','No return','No warranty');
 
-SELECT setval(pg_get_serial_sequence('product','productid'), COALESCE((SELECT MAX(productid) FROM product), 1));
+INSERT INTO counters (table_name, last_id) VALUES ('products', 16);
 
 -- ----- Orders -----
-CREATE TABLE "order" (
-  OrderID SERIAL PRIMARY KEY,
-  CustomerID INTEGER REFERENCES customer(CustomerID),
-  EmployeeID INTEGER REFERENCES employee(EmployeeID),
-  OrderDate TIMESTAMP,
+CREATE TABLE `order` (
+  OrderID INT AUTO_INCREMENT PRIMARY KEY,
+  CustomerID INT,
+  EmployeeID INT,
+  OrderDate DATETIME,
   OrderStatus VARCHAR(50),
   DeliveryMethod VARCHAR(50),
-  TotalAmount DECIMAL(10,2)
+  TotalAmount DECIMAL(10,2),
+  FOREIGN KEY (CustomerID) REFERENCES customer(CustomerID),
+  FOREIGN KEY (EmployeeID) REFERENCES employee(EmployeeID)
 );
 
-INSERT INTO "order" (OrderID, CustomerID, EmployeeID, OrderDate, OrderStatus, DeliveryMethod, TotalAmount) VALUES
+INSERT INTO `order` (OrderID, CustomerID, EmployeeID, OrderDate, OrderStatus, DeliveryMethod, TotalAmount) VALUES
   (1,1,3,'2026-03-01 00:00:00','Completed','Pickup',300.00),
   (2,2,3,'2026-03-02 00:00:00','Completed','Delivery',500.00),
   (3,3,3,'2026-03-03 00:00:00','Pending','Pickup',150.00),
   (4,4,3,'2026-03-04 00:00:00','Completed','Delivery',800.00),
   (5,5,3,'2026-03-05 00:00:00','Pending','Pickup',120.00);
 
-SELECT setval(pg_get_serial_sequence('"order"','orderid'), COALESCE((SELECT MAX(orderid) FROM "order"), 1));
+INSERT INTO counters (table_name, last_id) VALUES ('orders', 5);
 
 -- ----- Order Details -----
 CREATE TABLE orderdetails (
-  OrderDetailID SERIAL PRIMARY KEY,
-  OrderID INTEGER REFERENCES "order"(OrderID),
-  ProductID INTEGER REFERENCES product(ProductID),
-  Quantity INTEGER,
+  OrderDetailID INT AUTO_INCREMENT PRIMARY KEY,
+  OrderID INT,
+  ProductID INT,
+  Quantity INT,
   UnitPrice DECIMAL(10,2),
-  Subtotal DECIMAL(10,2)
+  Subtotal DECIMAL(10,2),
+  FOREIGN KEY (OrderID) REFERENCES `order`(OrderID),
+  FOREIGN KEY (ProductID) REFERENCES product(ProductID)
 );
 
 INSERT INTO orderdetails (OrderDetailID, OrderID, ProductID, Quantity, UnitPrice, Subtotal) VALUES
@@ -109,34 +124,36 @@ INSERT INTO orderdetails (OrderDetailID, OrderID, ProductID, Quantity, UnitPrice
   (5,4,4,1,800.00,800.00),
   (6,5,7,2,120.00,240.00);
 
-SELECT setval(pg_get_serial_sequence('orderdetails','orderdetailid'), COALESCE((SELECT MAX(orderdetailid) FROM orderdetails), 1));
+INSERT INTO counters (table_name, last_id) VALUES ('orderdetails', 6);
 
 -- ----- Inventory -----
 CREATE TABLE inventory (
-  InventoryID SERIAL PRIMARY KEY,
-  ProductID INTEGER REFERENCES product(ProductID),
-  StockQuantity INTEGER,
-  LastUpdated TIMESTAMP
+  InventoryID INT AUTO_INCREMENT PRIMARY KEY,
+  ProductID INT,
+  StockQuantity INT,
+  LastUpdated DATETIME,
+  FOREIGN KEY (ProductID) REFERENCES product(ProductID)
 );
 
 INSERT INTO inventory (InventoryID, ProductID, StockQuantity, LastUpdated) VALUES
-  (0,3,10,'2026-03-15 23:22:48'),
   (1,1,50,'2026-03-15 23:19:03'),
   (2,2,40,'2026-03-15 23:19:03'),
   (3,3,30,'2026-03-15 23:19:03'),
   (4,4,20,'2026-03-15 23:19:03'),
-  (5,5,15,'2026-03-15 23:19:03');
+  (5,5,15,'2026-03-15 23:19:03'),
+  (6,3,10,'2026-03-15 23:22:48');
 
-SELECT setval(pg_get_serial_sequence('inventory','inventoryid'), COALESCE((SELECT MAX(inventoryid) FROM inventory), 1));
+INSERT INTO counters (table_name, last_id) VALUES ('inventory', 6);
 
 -- ----- Payments -----
 CREATE TABLE payment (
-  PaymentID SERIAL PRIMARY KEY,
-  OrderID INTEGER REFERENCES "order"(OrderID),
-  PaymentDate TIMESTAMP,
+  PaymentID INT AUTO_INCREMENT PRIMARY KEY,
+  OrderID INT,
+  PaymentDate DATETIME,
   PaymentMethod VARCHAR(50),
   AmountPaid DECIMAL(10,2),
-  PaymentStatus VARCHAR(50)
+  PaymentStatus VARCHAR(50),
+  FOREIGN KEY (OrderID) REFERENCES `order`(OrderID)
 );
 
 INSERT INTO payment (PaymentID, OrderID, PaymentDate, PaymentMethod, AmountPaid, PaymentStatus) VALUES
@@ -144,37 +161,24 @@ INSERT INTO payment (PaymentID, OrderID, PaymentDate, PaymentMethod, AmountPaid,
   (2,2,'2026-03-02 00:00:00','GCash',500.00,'Paid'),
   (3,3,'2026-03-03 00:00:00','Cash',150.00,'Pending');
 
-SELECT setval(pg_get_serial_sequence('payment','paymentid'), COALESCE((SELECT MAX(paymentid) FROM payment), 1));
+INSERT INTO counters (table_name, last_id) VALUES ('payments', 3);
 
 -- ----- Delivery/Pickup -----
 CREATE TABLE delivery_pickup (
-  DeliveryID SERIAL PRIMARY KEY,
-  OrderID INTEGER REFERENCES "order"(OrderID),
-  DriverID INTEGER REFERENCES employee(EmployeeID),
-  AssistantID INTEGER REFERENCES employee(EmployeeID),
+  DeliveryID INT AUTO_INCREMENT PRIMARY KEY,
+  OrderID INT,
+  DriverID INT,
+  AssistantID INT,
   DeliveryType VARCHAR(50),
-  DeliveryDate TIMESTAMP,
-  DeliveryStatus VARCHAR(50)
+  DeliveryDate DATETIME,
+  DeliveryStatus VARCHAR(50),
+  FOREIGN KEY (OrderID) REFERENCES `order`(OrderID),
+  FOREIGN KEY (DriverID) REFERENCES employee(EmployeeID),
+  FOREIGN KEY (AssistantID) REFERENCES employee(EmployeeID)
 );
 
 INSERT INTO delivery_pickup (DeliveryID, OrderID, DriverID, AssistantID, DeliveryType, DeliveryDate, DeliveryStatus) VALUES
   (1,2,5,6,'Delivery','2026-03-02 00:00:00','Delivered'),
   (2,4,5,6,'Delivery','2026-03-04 00:00:00','Delivered');
 
-SELECT setval(pg_get_serial_sequence('delivery_pickup','deliveryid'), COALESCE((SELECT MAX(deliveryid) FROM delivery_pickup), 1));
-
--- ----- Views -----
-CREATE OR REPLACE VIEW ordersummary AS
-SELECT
-  (c.FirstName || ' ' || c.LastName) AS CustomerName,
-  o.OrderID AS OrderID,
-  o.TotalAmount AS TotalAmount
-FROM customer c
-JOIN "order" o ON c.CustomerID = o.CustomerID;
-
-CREATE OR REPLACE VIEW productinventoryview AS
-SELECT
-  p.ProductName AS ProductName,
-  i.StockQuantity AS StockQuantity
-FROM product p
-JOIN inventory i ON p.ProductID = i.ProductID;
+INSERT INTO counters (table_name, last_id) VALUES ('delivery_pickup', 2);

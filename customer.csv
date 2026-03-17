@@ -1,0 +1,6 @@
+CustomerID,FirstName,LastName,Email,PhoneNumber,Address
+1,Mark,Cruz,mark.cruz@email.com,09123456789,Bukidnon
+2,Anna,Reyes,anna.reyes@email.com,09122223333,Cagayan de Oro City
+3,John,Santos,john.santos@email.com,09133334444,Malaybalay
+4,Maria,Lopez,maria.lopez@email.com,09144445555,Valencia
+5,Jake,Tan,jake.tan@email.com,09155556666,Davao

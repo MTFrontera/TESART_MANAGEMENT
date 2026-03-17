@@ -1,0 +1,4 @@
+PaymentID,OrderID,PaymentDate,PaymentMethod,AmountPaid,PaymentStatus
+1,1,2026-03-01 00:00:00,Cash,300.00,Paid
+2,2,2026-03-02 00:00:00,GCash,500.00,Paid
+3,3,2026-03-03 00:00:00,Cash,150.00,Pending

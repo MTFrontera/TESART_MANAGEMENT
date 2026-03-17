@@ -1,0 +1,9 @@
+table_name,last_id
+customers,5
+employees,7
+products,16
+orders,5
+orderdetails,6
+inventory,6
+payments,3
+delivery_pickup,2

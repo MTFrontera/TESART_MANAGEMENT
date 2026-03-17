@@ -1,0 +1,8 @@
+EmployeeID,FirstName,LastName,Role,ContactNumber,ReportsTo
+1,Arthuro,Galendez,CEO,,
+2,John,Galendez,Manager,,
+3,Lisa,Garcia,Cashier,,
+4,Pedro,Torres,Printer Operator,,
+5,Ryan,Santos,Delivery Driver,09199998888,
+6,Kevin,Lee,Assistant,,
+7,Maria,Reyes,Senior Designer,,
